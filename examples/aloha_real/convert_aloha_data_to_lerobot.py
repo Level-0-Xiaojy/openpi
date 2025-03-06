@@ -41,13 +41,6 @@ def create_empty_dataset(
     dataset_config: DatasetConfig = DEFAULT_DATASET_CONFIG,
 ) -> LeRobotDataset:
     motors = [
-        "right_waist",
-        "right_shoulder",
-        "right_elbow",
-        "right_forearm_roll",
-        "right_wrist_angle",
-        "right_wrist_rotate",
-        "right_gripper",
         "left_waist",
         "left_shoulder",
         "left_elbow",
@@ -55,10 +48,17 @@ def create_empty_dataset(
         "left_wrist_angle",
         "left_wrist_rotate",
         "left_gripper",
+        "right_waist",
+        "right_shoulder",
+        "right_elbow",
+        "right_forearm_roll",
+        "right_wrist_angle",
+        "right_wrist_rotate",
+        "right_gripper",
     ]
     cameras = [
         "cam_high",
-        "cam_low",
+        # "cam_low",
         "cam_left_wrist",
         "cam_right_wrist",
     ]
@@ -155,6 +155,7 @@ def load_raw_images_per_camera(ep: h5py.File, cameras: list[str]) -> dict[str, n
             # load one compressed image after the other in RAM and uncompress
             imgs_array = []
             for data in ep[f"/observations/images/{camera}"]:
+                data = np.frombuffer(data, dtype=np.uint8)
                 imgs_array.append(cv2.cvtColor(cv2.imdecode(data, 1), cv2.COLOR_BGR2RGB))
             imgs_array = np.array(imgs_array)
 
@@ -181,7 +182,7 @@ def load_raw_episode_data(
             ep,
             [
                 "cam_high",
-                "cam_low",
+                # "cam_low",
                 "cam_left_wrist",
                 "cam_right_wrist",
             ],

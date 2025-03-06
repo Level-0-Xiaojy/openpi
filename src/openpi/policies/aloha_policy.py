@@ -3,21 +3,28 @@ from typing import ClassVar
 
 import einops
 import numpy as np
+from PIL import Image
 
 from openpi import transforms
+import cv2
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+
+
 
 
 def make_aloha_example() -> dict:
     """Creates a random input example for the Aloha policy."""
     return {
-        "state": np.ones((14,)),
+        #"state": np.ones((14,)),
+        "state":np.array([-0.043,  0.002,  0.009, -0.148,  0.136, -0.46, -0.668,  0.082, 0.003 , 0.004, -0.03,  -0.133,  0.472 ,-0.095]),
         "images": {
             "cam_high": np.random.randint(256, size=(3, 224, 224), dtype=np.uint8),
-            "cam_low": np.random.randint(256, size=(3, 224, 224), dtype=np.uint8),
+            #"cam_low": np.random.randint(256, size=(3, 224, 224), dtype=np.uint8),
             "cam_left_wrist": np.random.randint(256, size=(3, 224, 224), dtype=np.uint8),
             "cam_right_wrist": np.random.randint(256, size=(3, 224, 224), dtype=np.uint8),
         },
-        "prompt": "do something",
+        "prompt": "Insert the cube into the slot.",
     }
 
 
@@ -164,6 +171,8 @@ def _decode_aloha(data: dict, *, adapt_to_pi: bool = False) -> dict:
     # state is [left_arm_joint_angles, right_arm_joint_angles, left_arm_gripper, right_arm_gripper]
     # dim sizes: [6, 1, 6, 1]
     state = np.asarray(data["state"])
+    # 将二维数组转换为一维数组
+    state = state.flatten()    
     state = _decode_state(state, adapt_to_pi=adapt_to_pi)
 
     def convert_image(img):
