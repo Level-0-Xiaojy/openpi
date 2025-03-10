@@ -13,10 +13,17 @@ import h5py
 from lerobot.common.datasets.lerobot_dataset import LEROBOT_HOME
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 from lerobot.common.datasets.push_dataset_to_hub._download_raw import download_raw
+from lerobot.scripts.push_dataset_to_hub import (
+    push_dataset_card_to_hub,
+    push_meta_data_to_hub,
+    push_videos_to_hub,
+    save_meta_data,
+)
 import numpy as np
 import torch
 import tqdm
 import tyro
+import os
 
 
 @dataclasses.dataclass(frozen=True)
@@ -227,6 +234,21 @@ def populate_dataset(
     return dataset
 
 
+
+def save_lerobot_dataset_on_disk(lerobot_dataset, save_dir):
+    hf_dataset = lerobot_dataset.hf_dataset
+    info = lerobot_dataset.info
+    stats = lerobot_dataset.stats
+    episode_data_index = lerobot_dataset.episode_data_index
+    local_dir = lerobot_dataset.videos_dir.parent
+    meta_data_dir = local_dir / "meta_data"
+
+    hf_dataset = hf_dataset.with_format(None)  # to remove transforms that cant be saved
+    hf_dataset.save_to_disk(str(save_dir))
+
+    save_meta_data(info, stats, episode_data_index, meta_data_dir)
+
+
 def port_aloha(
     raw_dir: Path,
     repo_id: str,
@@ -234,7 +256,9 @@ def port_aloha(
     task: str = "DEBUG",
     *,
     episodes: list[int] | None = None,
-    push_to_hub: bool = True,
+    push_to_hub: bool = False,
+    save_to_disk: bool = True,
+    save_dir: Path | None = None,
     is_mobile: bool = False,
     mode: Literal["video", "image"] = "image",
     dataset_config: DatasetConfig = DEFAULT_DATASET_CONFIG,
@@ -264,6 +288,12 @@ def port_aloha(
         episodes=episodes,
     )
     dataset.consolidate()
+
+    if save_to_disk:
+        if save_dir is None:
+            save_dir = "lerobot_datasets"
+        os.makedirs(save_dir, exist_ok=True)
+        save_lerobot_dataset_on_disk(dataset, os.path.join(save_dir, repo_id))
 
     if push_to_hub:
         dataset.push_to_hub()
