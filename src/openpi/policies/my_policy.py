@@ -16,7 +16,7 @@ def make_libero_example() -> dict:
         "prompt": "do something",
     }
 
-
+# 输入图像处理 为 指定格式
 def _parse_image(image) -> np.ndarray:
     image = np.asarray(image)
     if np.issubdtype(image.dtype, np.floating):
@@ -114,4 +114,5 @@ class LiberoOutputs(transforms.DataTransformFn):
         # dimension, we need to now parse out the correct number of actions in the return dict.
         # For Libero, we only return the first 7 actions (since the rest is padding).
         # For your own dataset, replace `7` with the action dimension of your dataset.
-        return {"actions": np.asarray(data["actions"][:, :7])} # maybe 8
+        return {"actions": np.asarray(data["actions"][:, :7])}
+        # --------------此处修改------------------把 7 改为自己的action维度

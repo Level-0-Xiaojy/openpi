@@ -142,6 +142,8 @@ We provide example fine-tuning configs for both, [π₀](src/openpi/training/con
 Before we can run training, we need to compute the normalization statistics for the training data. Run the script below with the name of your training config:
 
 ```bash
+#先要把本地的数据集推送到本地huggingface(例如可复制到.cache/huggingface/lerobot/pick_the_box)，注意记录repo_id，在openpi_franka/src/openpi/training/config.py中修改pi0_franka的repo_id
+#注意代码中local_batch_size需要改为所用显卡的倍数，不然会报错
 uv run scripts/compute_norm_stats.py --config-name pi0_fast_libero
 ```
 
@@ -161,12 +163,48 @@ Once training is complete, we can run inference by spinning up a policy server a
 
 ```bash
 uv run scripts/serve_policy.py policy:checkpoint --policy.config=pi0_fast_libero --policy.dir=checkpoints/pi0_fast_libero/my_experiment/20000
+# uv run scripts/serve_policy.py policy:checkpoint  --policy.config=pi0_franka  --policy.dir=/home/ubuntu/openpi/checkpoints/pi0_franka/pick_franka
+# 然后在franka的控制电脑中的polymetis-local环境里安装openpi-client,安装完后运行examples/franka/real_franka.py进行实机控制
 ```
 
 This will spin up a server that listens on port 8000 and waits for observations to be sent to it. We can then run the Libero evaluation script to query the server. For instructions how to install Libero and run the evaluation script, see the [Libero README](examples/libero/README.md).
 
 If you want to embed a policy server call in your own robot runtime, we have a minimal example of how to do so in the [remote inference docs](docs/remote_inference.md).
 
+
+## Streaming Fast-Slow System
+
+We have introduced a streaming fast-slow system to decouple low-frequency vision+language encoding (prefix) from high-frequency action outputs (suffix). The implementation is in `src/openpi/streaming/streaming_policy.py`, where:
+
+- The suffix step `_suffix_step` is JIT-compiled via `jax.jit` to accelerate diffusion updates.
+- The prefix step (visual + language encoding and KV cache initialization) is compiled with `module_jit` to freeze the model state and avoid recompilation overhead.
+
+To test streaming behavior, see the `examples/franka/test_stream_franka.py` script.
+
+### Single-Step Action Prediction
+
+To perform one-step action prediction (i.e., horizon=1), set `action_horizon` to `1` in your model configuration before training. For example:
+
+```bash
+# via CLI
+uv run scripts/train.py pi0_franka --config.model.action_horizon=1
+```
+
+This will configure the model to output single action steps, suitable for closed-loop control.
+
+### Launching the Streaming Policy Server
+
+To start the streaming fast-slow policy server:
+
+```bash
+uv run scripts/serve_stream_policy.py policy:checkpoint --policy.config=pi0_franka --policy.dir=<PATH_TO_CHECKPOINT>
+```
+
+Options:
+- `--port`: server port (default 8000)
+- `--num-diffusion-steps`: diffusion steps for suffix (default 10)
+- `--default_prompt`: default prompt if none provided
+- `--record`: record policy behavior to `policy_records/`
 
 
 ### More Examples
