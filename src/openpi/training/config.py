@@ -393,7 +393,7 @@ class LeRobotFrankaDataConfig(DataConfigFactory):
         # the delta action transform
 
         # --------------此处修改------------------ action为关节角+gripper  关节角转为delta训练
-        delta_action_mask = _transforms.make_bool_mask(6, -1)
+        delta_action_mask = _transforms.make_bool_mask(6, -1) # True True True True True True True False
         data_transforms = data_transforms.push(
             inputs=[_transforms.DeltaActions(delta_action_mask)],
             outputs=[_transforms.AbsoluteActions(delta_action_mask)],
@@ -819,15 +819,14 @@ _CONFIGS = [
         model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora", action_horizon=1),
         # model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
         data=LeRobotFrankaDataConfig(  # 使用自定义数据配置
-            repo_id="pick_data1",
+            repo_id="pancake-w/test", # 在本地配置
             default_prompt="pick the box",
             base_config=DataConfig(
-                local_files_only=True,
                 # repo_id="/home/chengyilin/data/pi0/pick_the_box/",
                 prompt_from_task=False,
             ),
             # 可选：自定义参数
-            # use_delta_actions=True,  # 示例：控制是否使用增量动作
+            # use_delta_actions=False,  # 示例：控制是否使用增量动作
         ),
         # 使用本地预训练权重
         # weight_loader=weight_loaders.CheckpointWeightLoader("./checkpoints/pi0_base/params"),
@@ -835,20 +834,54 @@ _CONFIGS = [
         # weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
         # 其他训练参数
         num_train_steps=30_000,
-        batch_size=3,
+        batch_size=4, # If you have x devices, use a batch size that is a multiple of x.
         save_interval=10000,
         exp_name="local_dataset_finetune_LoRA",  # 在命令行可覆盖
 
-        # freeze_filter=pi0.Pi0Config(
-        #     paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
-        # ).get_freeze_filter(),
-
         freeze_filter=pi0.Pi0Config(
-            paligemma_variant="gemma_2b_lora"
+            paligemma_variant="gemma_2b_lora",
+            # action_expert_variant="gemma_300m_lora",
         ).get_freeze_filter(),
         # Turn off EMA for LoRA finetuning.
         ema_decay=None,
     ),
+
+    # TrainConfig(
+    #     name="pi0_aloha_pour_water_left_hand",
+    #     model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
+    #     data=LeRobotAlohaDataConfig(
+    #         repo_id="ying01/pour_water_left_hand",
+    #         assets=AssetsConfig(
+    #             assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
+    #             asset_id="trossen_mobile",
+    #         ),
+    #         default_prompt="Pick up the mineral water bottle with the left hand on the table and pour water into the mug until it's half full.",
+    #         repack_transforms=_transforms.Group(
+    #             inputs=[
+    #                 _transforms.RepackTransform(
+    #                     {
+    #                         "images": {
+    #                             "cam_high": "observation.images.cam_high",
+    #                             "cam_left_wrist": "observation.images.cam_left_wrist",
+    #                             "cam_right_wrist": "observation.images.cam_right_wrist",
+    #                         },
+    #                         "state": "observation.state",
+    #                         "actions": "action",
+    #                     }
+    #                 )
+    #             ]
+    #         ),
+    #         base_config=DataConfig(
+    #             local_files_only=False,  # Set to True for local-only datasets.
+    #         ),
+    #     ),
+    #     weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+    #     num_train_steps=20_000,
+    #     freeze_filter=pi0.Pi0Config(
+    #         paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
+    #     ).get_freeze_filter(),
+    #     ema_decay=None,
+    # ),
     # 此处修改------------------
 
 ]
