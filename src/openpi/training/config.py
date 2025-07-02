@@ -811,11 +811,11 @@ _CONFIGS = [
         name="pi0_franka",
         model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora",  # use lora
                             action_expert_variant="gemma_300m_lora", # use lora
-                            action_dim=8,
+                            action_dim=32, # finetune should match pi0_base(using 32)
                             action_horizon=1,
                             ),
         data=LeRobotFrankaDataConfig(
-            repo_id="pancake-w/test", # created in convert_franka_data_xxxx
+            repo_id="pancake-w/test_npy", # created in convert_franka_data_xxxx
             default_prompt="pick the box",
             # assets=AssetsConfig(
             #     assets_dir="gs://openpi-assets/checkpoints/pi0_base/assets",
