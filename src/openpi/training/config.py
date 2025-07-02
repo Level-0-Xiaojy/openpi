@@ -20,6 +20,7 @@ import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
+import openpi.policies.franka_policy as franka_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -334,15 +335,8 @@ class LeRobotFrankaDataConfig(DataConfigFactory):
     For your own dataset, you can copy this class and modify the transforms to match your dataset based on the
     comments below.
     """
-    # If true, will convert joint dimensions to deltas with respect to the current state before passing to the model.
-    # Gripper dimensions will remain in absolute values.
-    use_delta_joint_actions: bool = True
     # If provided, will be injected into the input data if the "prompt" key is not present.
     default_prompt: str | None = None
-    # If true, this will convert the joint and gripper values from the standard Aloha space to
-    # the space used by the pi internal runtime which was used to train the base model. People who
-    # use standard Aloha data should set this to true.
-    adapt_to_pi: bool = True
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
@@ -362,7 +356,7 @@ class LeRobotFrankaDataConfig(DataConfigFactory):
                         "observation/wrist_image": "wrist_image",
                         "observation/state": "state",
                         "actions": "actions",
-                        # "prompt": "task",
+                        # "language_instruction": "task",
                     }
                 )
             ]
@@ -375,8 +369,8 @@ class LeRobotFrankaDataConfig(DataConfigFactory):
         # how to modify the transforms to match your dataset. Once you created your own transforms, you can
         # replace the transforms below with your own.
         data_transforms = _transforms.Group(
-            inputs=[libero_policy.LiberoInputs(action_dim=model_config.action_dim, model_type=model_config.model_type)],
-            outputs=[libero_policy.LiberoOutputs()],
+            inputs=[franka_policy.FrankaInputs(action_dim=model_config.action_dim, model_type=model_config.model_type)],
+            outputs=[franka_policy.FrankaOutputs()],
         )
 
         # One additional data transform: pi0 models are trained on delta actions (relative to the first
@@ -391,11 +385,10 @@ class LeRobotFrankaDataConfig(DataConfigFactory):
 
         # TODO(karl): comment this out once we have updated the Libero checkpoints to not use
         # the delta action transform
-
-        # --------------此处修改------------------ action为关节角+gripper  关节角转为delta训练
+        # [x,y,z,rx,ry,rz,gripper] for 7 dim
         delta_action_mask = _transforms.make_bool_mask(6, -1) # True True True True True True True False
         data_transforms = data_transforms.push(
-            inputs=[_transforms.DeltaActions(delta_action_mask)],
+            inputs=[_transforms.DeltaActions(delta_action_mask)], # Here delta is calculated by action-state, maybe False? @Bingwen
             outputs=[_transforms.AbsoluteActions(delta_action_mask)],
         )
 
@@ -813,77 +806,39 @@ _CONFIGS = [
         num_train_steps=10,
         wandb_enabled=False,
     ),
-    # --------------此处修改------------------
+    # ----------------------- Add your train_config code here ----------------------- #
     TrainConfig(
         name="pi0_franka",
-        model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora", action_horizon=1),
-        # model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
-        data=LeRobotFrankaDataConfig(  # 使用自定义数据配置
-            repo_id="pancake-w/test", # 在本地配置
+        model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", 
+                            action_expert_variant="gemma_300m_lora",
+                            action_dim=8,
+                            action_horizon=1,
+                            ),
+        data=LeRobotFrankaDataConfig(
+            repo_id="pancake-w/test", # created in convert_franka_data_xxxx
             default_prompt="pick the box",
-            base_config=DataConfig(
-                # repo_id="/home/chengyilin/data/pi0/pick_the_box/",
-                prompt_from_task=False,
-            ),
-            # 可选：自定义参数
-            # use_delta_actions=False,  # 示例：控制是否使用增量动作
+            # assets=AssetsConfig(
+            #     assets_dir="gs://openpi-assets/checkpoints/pi0_base/assets",
+            #     asset_id="droid",
+            # ),
         ),
-        # 使用本地预训练权重
+
+        # use local trained params
         # weight_loader=weight_loaders.CheckpointWeightLoader("./checkpoints/pi0_base/params"),
-        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
-        # weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
-        # 其他训练参数
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"), # pi0_fast_base
+        # other train params
         num_train_steps=30_000,
         batch_size=4, # If you have x devices, use a batch size that is a multiple of x.
         save_interval=10000,
-        exp_name="local_dataset_finetune_LoRA",  # 在命令行可覆盖
-
-        freeze_filter=pi0.Pi0Config(
-            paligemma_variant="gemma_2b_lora",
-            # action_expert_variant="gemma_300m_lora",
-        ).get_freeze_filter(),
+        exp_name="local_dataset_finetune_LoRA", # 在命令行可覆盖
+        freeze_filter=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", 
+                                    action_expert_variant="gemma_300m_lora", # whether to be added
+                                    action_dim=8,
+                                    action_horizon=1,
+                                    ).get_freeze_filter(),
         # Turn off EMA for LoRA finetuning.
         ema_decay=None,
     ),
-
-    # TrainConfig(
-    #     name="pi0_aloha_pour_water_left_hand",
-    #     model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
-    #     data=LeRobotAlohaDataConfig(
-    #         repo_id="ying01/pour_water_left_hand",
-    #         assets=AssetsConfig(
-    #             assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
-    #             asset_id="trossen_mobile",
-    #         ),
-    #         default_prompt="Pick up the mineral water bottle with the left hand on the table and pour water into the mug until it's half full.",
-    #         repack_transforms=_transforms.Group(
-    #             inputs=[
-    #                 _transforms.RepackTransform(
-    #                     {
-    #                         "images": {
-    #                             "cam_high": "observation.images.cam_high",
-    #                             "cam_left_wrist": "observation.images.cam_left_wrist",
-    #                             "cam_right_wrist": "observation.images.cam_right_wrist",
-    #                         },
-    #                         "state": "observation.state",
-    #                         "actions": "action",
-    #                     }
-    #                 )
-    #             ]
-    #         ),
-    #         base_config=DataConfig(
-    #             local_files_only=False,  # Set to True for local-only datasets.
-    #         ),
-    #     ),
-    #     weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
-    #     num_train_steps=20_000,
-    #     freeze_filter=pi0.Pi0Config(
-    #         paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
-    #     ).get_freeze_filter(),
-    #     ema_decay=None,
-    # ),
-    # 此处修改------------------
-
 ]
 
 if len({config.name for config in _CONFIGS}) != len(_CONFIGS):
