@@ -809,8 +809,8 @@ _CONFIGS = [
     # ----------------------- Add your train_config code here ----------------------- #
     TrainConfig(
         name="pi0_franka",
-        model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", 
-                            action_expert_variant="gemma_300m_lora",
+        model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora",  # use lora
+                            action_expert_variant="gemma_300m_lora", # use lora
                             action_dim=8,
                             action_horizon=1,
                             ),

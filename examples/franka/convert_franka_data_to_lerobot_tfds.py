@@ -97,7 +97,7 @@ def main(repo_id: str, dataset_name: str, data_dir: str, *, push_to_hub: bool = 
                     "wrist_image": step["observation"]["wrist_image"],
                     "state": step["observation"]["state"],
                     "actions": step["action"],
-                    "task": language_instruction,
+                    "task": language_instruction, # designed for multitask in one episode
                 }
             )
             num_steps += 1
