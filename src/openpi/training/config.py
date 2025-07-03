@@ -829,7 +829,7 @@ _CONFIGS = [
         # other train params
         num_train_steps=30_000,
         batch_size=4, # If you have x devices, use a batch size that is a multiple of x.
-        save_interval=10000,
+        save_interval=5000,
         exp_name="local_dataset_finetune_LoRA", # 在命令行可覆盖
         freeze_filter=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", 
                                     action_expert_variant="gemma_300m_lora", # whether to be added

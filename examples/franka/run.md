@@ -26,7 +26,7 @@ CUDA_VISIBLE_DEVICES=3 uv run scripts/compute_norm_stats.py --config-name pi0_fr
 ### train
 
 ```bash 
-CUDA_VISIBLE_DEVICES=3,4 XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 uv run scripts/train.py pi0_franka --exp-name=bingwen_test --overwrite
+CUDA_VISIBLE_DEVICES=3,4 XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 uv run scripts/train.py pi0_franka --exp-name=bingwen_thu --overwrite
 ```
 
 
