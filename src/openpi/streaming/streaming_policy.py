@@ -5,6 +5,7 @@ from openpi.models.model import Observation
 import openpi.models.pi0 as pi0_module
 from openpi.policies.policy import Policy
 import types
+from openpi.models.pi0 import Pi0
 from openpi.shared.nnx_utils import module_jit
 from openpi.transforms import pad_to_dim, Normalize  # 新增：后缀阶段 state pad & normalize
 
@@ -62,10 +63,11 @@ class StreamingPolicy(Policy):
         return state
 
     def infer(self, obs: dict) -> dict:
-        # 判断是否有新的视觉/语言输入
         has_visual = any(k.startswith("image") for k in obs) or ("prompt" in obs)
-        # 前缀（慢脑）阶段，进行完整的 transforms
+        # prefix (slow brain) phase, run complete transforms
         if has_visual:
+            # different from suffix(fast brain) below.
+
             # 预处理输入：执行 repack, data_transforms, model_transforms
             inputs = self._input_transform(obs)
             # 构造 batch_size=1 的 Observation
@@ -74,53 +76,55 @@ class StreamingPolicy(Policy):
             self._prefix_obs_jax = obs_jax
             # 使用 module_jit 编译的 embed_prefix + llm 函数获取缓存
             self._kv_cache, self._prefix_mask, self._prefix_len = self._embed_prefix_fn(obs_jax)
-            # 初始化扩散噪声/时间
+            # different from suffix(fast brain) above.
+
+            # init diffusion noise and time
             batch = obs_jax.state.shape[0]
             self._rng, subkey = jax.random.split(self._rng)
             self._x_t = jax.random.normal(subkey, (batch, self._model.action_horizon, self._model.action_dim))
             self._time = jnp.ones((batch,))
-            # 执行完整的扩散过程
+            # run complete diffusion process
             for _ in range(self._num_diffusion_steps):
                 v_t, self._x_t, self._time = self._suffix_step(
                     obs_jax, self._x_t, self._time, self._kv_cache, self._prefix_mask, self._prefix_len
                 )
-            # 缓存最终的动作值和状态
-            self._last_prefix_action = self._x_t.copy()
-            self._last_prefix_state = obs_jax.state.copy()
+            # # cache final action and state value, not be used
+            # self._last_prefix_action = self._x_t.copy()
+            # self._last_prefix_state = obs_jax.state.copy()
         else:
-            # 快脑（suffix）阶段，仅更新 state
+            # fast brain (suffix) phase, only update state
             if not hasattr(self, '_prefix_obs_jax') or self._prefix_obs_jax is None:
                 raise RuntimeError('Suffix inference before any prefix step')
             if 'observation/state' not in obs:
                 raise KeyError('observation/state key is required for suffix inference')
             
-            # 使用专门的状态转换函数处理状态
+            # use specific state transform function
             new_state = self._transform_state(obs['observation/state'])
             new_state = jnp.asarray(new_state)[None]
             
-            # 使用缓存的前缀观察，只更新状态
+            # only update the state in the cached prefix observation
             obs_jax = self._prefix_obs_jax.replace(state=new_state)
             
-            # 生成新的随机噪声
+            # generate new random noise and time
             batch = obs_jax.state.shape[0]
             self._rng, subkey = jax.random.split(self._rng)
             self._x_t = jax.random.normal(subkey, (batch, self._model.action_horizon, self._model.action_dim))
             self._time = jnp.ones((obs_jax.state.shape[0],))
             
-            # 执行完整的扩散过程
+            # run the complete suffix diffusion process
             for _ in range(self._num_diffusion_steps):
                 v_t, self._x_t, self._time = self._suffix_step(
                     obs_jax, self._x_t, self._time, self._kv_cache, self._prefix_mask, self._prefix_len
                 )
 
-        # 提取本帧动作并返回
+        # get the action and return 
         action = np.asarray(self._x_t[0])
-        # 同时返回state，供输出变换使用
+        # get the state for output transform
         state_out = np.asarray(obs_jax.state[0])
         outputs = {"state": state_out, "actions": action}
         return self._output_transform(outputs)
 
-    # 新增：后缀推理函数，JIT 编译后只保留核心计算
+    # 新增: 后缀推理函数, JIT 编译后只保留核心计算
     def _suffix_step(self, obs_jax, x_t, time, kv_cache, prefix_mask, prefix_len):
         suffix_tokens, suffix_mask, suffix_ar = self._model.embed_suffix(obs_jax, x_t, time)
         suffix_attn = pi0_module.make_attn_mask(suffix_mask, suffix_ar)

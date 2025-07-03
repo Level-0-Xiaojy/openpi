@@ -26,18 +26,21 @@ CUDA_VISIBLE_DEVICES=3 uv run scripts/compute_norm_stats.py --config-name pi0_fr
 ### train
 
 ```bash 
+# 0.9*40GB
 CUDA_VISIBLE_DEVICES=3,4 XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 uv run scripts/train.py pi0_franka --exp-name=bingwen_thu --overwrite
 ```
 
 
-### run policy not tested
+### run policy
 
 ```bash
-uv run scripts/serve_policy.py policy:checkpoint --policy.config=pi0_aloha_insert_cube_slot --policy.dir=/home/liy/openpi/checkpoints/pi0_aloha_insert_cube_slot/my_experiment/19999
+# About 30 GB
+CUDA_VISIBLE_DEVICES=5 uv run scripts/serve_policy.py policy:checkpoint --policy.config=pi0_franka --policy.dir=checkpoints/pi0_franka/bingwen_thu/5000 
 ```
 
 ### inference not tested
 
 ```bash
-python infer.py
+# TODO 
+
 ```
