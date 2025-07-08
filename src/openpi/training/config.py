@@ -595,7 +595,7 @@ _CONFIGS = [
     ),
     TrainConfig(
         name="pi0_fast_droid",
-        model=pi0_fast.Pi0FASTConfig(action_dim=8, action_horizon=10),
+        model=pi0_fast.Pi0FASTConfig(action_dim=8, action_horizon=10), # maybe need to change action_dim=27 No ?
         data=SimpleDataConfig(
             assets=AssetsConfig(asset_id="droid"),
             data_transforms=lambda model: _transforms.Group(

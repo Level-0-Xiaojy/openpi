@@ -247,7 +247,7 @@ def create_data_loader(
         sharding=sharding,
         shuffle=shuffle,
         num_batches=num_batches,
-        num_workers=config.num_workers,
+        num_workers=config.num_workers, # Use the main process for data loading. @bingwen
         seed=config.seed,
         skip_norm_stats=skip_norm_stats,
     )
@@ -283,7 +283,7 @@ def create_torch_data_loader(
             execute in the main process.
         seed: The seed to use for shuffling the data.
     """
-    dataset = create_torch_dataset(data_config, action_horizon, model_config)
+    dataset = create_torch_dataset(data_config, action_horizon, model_config) # use dataset here.
     dataset = transform_dataset(dataset, data_config, skip_norm_stats=skip_norm_stats)
 
     data_loader = TorchDataLoader(
