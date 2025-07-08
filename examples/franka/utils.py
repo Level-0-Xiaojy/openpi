@@ -24,6 +24,7 @@ def calc_mse_and_check_via_single_trajectory(
     steps: int = 50,
     plot: bool = False,
     episode_index: int = 0,
+    instruction: str = "Grasp the chili and place it into the bowl.",
 ):
     """
     Calculates the Mean Squared Error (MSE) between the predicted and ground truth actions
@@ -69,7 +70,7 @@ def calc_mse_and_check_via_single_trajectory(
             "observation/image": get_uint8_image(data_point['image']),
             "observation/wrist_image": get_uint8_image(data_point['wrist_image']),
             "observation/state": data_point['state'],
-            # "prompt": "do something",
+            "prompt": instruction,
         }
 
     for step_count in range(min(steps, len(trajectory))):

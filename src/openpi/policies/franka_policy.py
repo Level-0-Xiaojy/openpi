@@ -15,7 +15,7 @@ def make_franka_example() -> dict:
         "observation/image": np.random.randint(256, size=(480, 640, 3), dtype=np.uint8),
         "observation/wrist_image": np.random.randint(256, size=(480, 640, 3), dtype=np.uint8),
         "observation/state": np.random.rand(7),
-        # "prompt": "do something",
+        "prompt": "do something",
     }
 
 
