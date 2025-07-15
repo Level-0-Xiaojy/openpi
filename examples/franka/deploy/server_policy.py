@@ -148,7 +148,7 @@ def create_policy(args: Args) -> _policy.Policy:
 
 # === Server Interface ===
 class Pi0Server:
-    def __init__(self, args: Args) -> Path:
+    def __init__(self, args: Args):
         """
         A simple server for OpenVLA models; exposes `/act` to predict an action for a given image + instruction.
             => Takes in {"image": np.ndarray, "instruction": str, "unnorm_key": Optional[str]}
