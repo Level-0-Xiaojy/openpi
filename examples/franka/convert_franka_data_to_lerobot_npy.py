@@ -104,7 +104,7 @@ def process_episode(npy_path: str) -> Optional[Tuple[str, int, Generator[Dict[st
                 continue
                 
             yield {
-                "image": episode_data['observation']['rgb'][step_idx, 1], # TODO(bingwen) to check
+                "image": episode_data['observation']['rgb'][step_idx, 1],
                 "wrist_image": episode_data['observation']['rgb'][step_idx, 0],
                 "state": state_vec, # 7,
                 "actions": action_vec, # 7,
@@ -134,13 +134,23 @@ def main(repo_id: str, data_dir: str, *, push_to_hub: bool = False):
         robot_type="franka_panda",
         fps=5,
         features={
+            "observation.images.image": {
+                "names": ["channel", "height", "width"],
+                "dtype": "video", # for gr00t
+                "shape": (3, 480, 640), # (C, H, W)
+            },
+            "observation.images.wrist_image": {
+                "names": ["channel", "height", "width"],
+                "dtype": "video", # for gr00t
+                "shape": (3, 480, 640), # (C, H, W)
+            },
             "image": {
-                "dtype": "image",
+                "dtype": "image", # for openpi
                 "shape": (480, 640, 3),
                 "names": ["height", "width", "channel"],
             },
             "wrist_image": {
-                "dtype": "image",
+                "dtype": "image", # for openpi
                 "shape": (480, 640, 3),
                 "names": ["height", "width", "channel"],
             },
@@ -174,7 +184,11 @@ def main(repo_id: str, data_dir: str, *, push_to_hub: bool = False):
         instruction, num_steps, frame_generator = processed_data        
         # Add data frame by frame
         for frame_data in frame_generator:
+            frame_data["observation.images.image"] = frame_data["image"].transpose(2, 0, 1)
+            frame_data["observation.images.wrist_image"] = frame_data["wrist_image"].transpose(2, 0, 1)
             frame_data["task"] = instruction
+            # frame_data.pop("image", None)  # Remove original image key
+            # frame_data.pop("wrist_image", None)  # Remove original wrist_image key
             dataset.add_frame(frame_data)
 
         dataset.save_episode()

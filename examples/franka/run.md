@@ -1,9 +1,12 @@
 
-### raw data process
+### raw data process (CPU)
+
+You should modify the [encode_video_frames](../../.venv/lib/python3.11/site-packages/lerobot/common/datasets/video_utils.py) in `video_utils.py` of lerobot, and then set the parameter `vcodec: str = "h264"` for gr00t dataset.
 
 ```bash
+# only use cpu
 # convert npy data to lerobot dataset 
-CUDA_VISIBLE_DEVICES=7 uv run examples/franka/convert_franka_data_to_lerobot_npy.py --repo-id "pancake-w/test_npy" --data-dir "/nvme_data/bingwen/share_datasets/franka_panda/pick_to_plate-real"
+CUDA_VISIBLE_DEVICES=1 uv run examples/franka/convert_franka_data_to_lerobot_npy.py --repo-id "pancake-w/gr00t" --data-dir "/nvme_data/bingwen/share_datasets/franka_panda/pick_to_plate-real"
 
 ## convert rlds dataset to lerobot dataset in new lerobot version.
 # to check the data structure
