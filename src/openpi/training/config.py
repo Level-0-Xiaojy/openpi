@@ -812,32 +812,57 @@ _CONFIGS = [
         model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora",  # use lora
                             action_expert_variant="gemma_300m_lora", # use lora
                             action_dim=32, # finetune should match pi0_base(using 32)
-                            action_horizon=1,
+                            action_horizon=10,
                             ),
         data=LeRobotFrankaDataConfig(
-            repo_id="pancake-w/test_npy", # created in convert_franka_data_xxxx
-            default_prompt="pick the box",
+            repo_id="pancake-w/openpi", # created in convert_franka_data_xxxx
+            default_prompt="defalut prompt",
             # assets=AssetsConfig(
-            #     assets_dir="gs://openpi-assets/checkpoints/pi0_base/assets",
+            #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
             #     asset_id="droid",
             # ),
         ),
-
-        # use local trained params
-        # weight_loader=weight_loaders.CheckpointWeightLoader("./checkpoints/pi0_base/params"),
-        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"), # pi0_fast_base
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
         # other train params
         num_train_steps=30_000,
         batch_size=4, # If you have x devices, use a batch size that is a multiple of x.
         save_interval=5000,
-        exp_name="local_dataset_finetune_LoRA", # 在命令行可覆盖
+        exp_name="local_dataset_finetune_LoRA",
         freeze_filter=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", 
                                     action_expert_variant="gemma_300m_lora", # whether to be added
-                                    action_dim=8,
-                                    action_horizon=1,
+                                    action_dim=8, # ?
+                                    action_horizon=10,
                                     ).get_freeze_filter(),
         # Turn off EMA for LoRA finetuning.
         ema_decay=None,
+    ),
+    TrainConfig(
+        name="pi0_fast_franka",
+        # Here is an example of loading a pi0-FAST model for LoRA finetuning.
+        # For setting action_dim, action_horizon, and max_token_len, see the comments above.
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=7, action_horizon=10, max_token_len=180, paligemma_variant="gemma_2b_lora"
+        ),
+        data=LeRobotFrankaDataConfig(
+            repo_id="pancake-w/openpi_fast", # created in convert_franka_data_xxxx
+            default_prompt="defalut prompt",
+            # assets=AssetsConfig(
+            #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
+            #     asset_id="droid",
+            # ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
+        num_train_steps=30_000,
+        # Again, make sure to match the model config above when extracting the freeze filter
+        # that specifies which parameters should be frozen during LoRA finetuning.
+        freeze_filter=pi0_fast.Pi0FASTConfig(
+            action_dim=7, action_horizon=10, max_token_len=180, paligemma_variant="gemma_2b_lora"
+        ).get_freeze_filter(),
+        # Turn off EMA for LoRA finetuning.
+        ema_decay=None,
+        save_interval=5000,
+        batch_size=32, # If you have x devices, use a batch size that is a multiple of x.
+        log_interval=100,
     ),
 ]
 
