@@ -56,3 +56,7 @@ CUDA_VISIBLE_DEVICES=5 uv run scripts/serve_policy.py policy:checkpoint --policy
 CUDA_VISIBLE_DEVICES=7 uv run examples/franka/inference_test.py
 # you can check the trajectory in test_inference_check.ipynb
 ```
+
+### deploy
+
+Check [README.md](./deploy/README.md)
