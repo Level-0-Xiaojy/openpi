@@ -9,6 +9,8 @@ source .venv/bin/activate
 # convert npy data to lerobot dataset 
 CUDA_VISIBLE_DEVICES=1 uv run examples/franka/convert_franka_data_to_lerobot_npy.py --repo-id "pancake-w/openpi_fast" --data-dir "/nvme_data/bingwen/share_datasets/franka_panda/pick_to_plate-real"
 
+ln -s ~/.cache/huggingface/lerobot lerobot_datasets # link your lerobot dataset, but you should create lerobot_dataset first
+
 # ## convert rlds dataset to lerobot dataset in new lerobot version.
 # # to check the data structure
 # CUDA_VISIBLE_DEVICES=3,4,5,7 uv run examples/franka/inspect_rlds.py

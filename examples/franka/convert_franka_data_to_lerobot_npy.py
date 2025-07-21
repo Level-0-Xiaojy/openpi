@@ -35,7 +35,7 @@ def find_episode_files(data_dir: str) -> List[str]:
         A sorted list containing the full paths to all 'data.npy' files.
     """
     print(f"Searching for episodes in directory '{data_dir}'...")
-    episode_files = sorted(glob.glob(os.path.join(data_dir, "episode_*", "data.npy")))
+    episode_files = sorted(glob.glob(os.path.expanduser(os.path.join(data_dir, "episode_*", "data.npy"))))
     
     if not episode_files:
         print(f"Warning: No files matching the 'episode_*/data.npy' pattern were found in '{data_dir}'.")
