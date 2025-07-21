@@ -394,7 +394,7 @@ class LeRobotFrankaDataConfig(DataConfigFactory):
 
         # Model transforms include things like tokenizing the prompt and action targets
         # You do not need to change anything here for your own dataset.
-        model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
+        model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config) # control pi0 or pi0-fast
 
         # We return all data transforms for training and inference. No need to change anything here.
         return dataclasses.replace(
@@ -825,13 +825,12 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
         # other train params
         num_train_steps=30_000,
-        batch_size=4, # If you have x devices, use a batch size that is a multiple of x.
+        batch_size=32, # If you have x devices, use a batch size that is a multiple of x.
         save_interval=5000,
         exp_name="local_dataset_finetune_LoRA",
+        # in get filter, only variant name is used, other params are not used.
         freeze_filter=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", 
-                                    action_expert_variant="gemma_300m_lora", # whether to be added
-                                    action_dim=8, # ?
-                                    action_horizon=10,
+                                    action_expert_variant="gemma_300m_lora",
                                     ).get_freeze_filter(),
         # Turn off EMA for LoRA finetuning.
         ema_decay=None,
@@ -855,6 +854,7 @@ _CONFIGS = [
         num_train_steps=30_000,
         # Again, make sure to match the model config above when extracting the freeze filter
         # that specifies which parameters should be frozen during LoRA finetuning.
+         # in get filter, only variant name is used, other params are not used.
         freeze_filter=pi0_fast.Pi0FASTConfig(
             action_dim=7, action_horizon=10, max_token_len=180, paligemma_variant="gemma_2b_lora"
         ).get_freeze_filter(),
