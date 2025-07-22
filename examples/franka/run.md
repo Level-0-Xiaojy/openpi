@@ -49,7 +49,7 @@ CUDA_VISIBLE_DEVICES=5,6 XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 uv run scripts/train
 
 ```bash
 # About 30 GB
-CUDA_VISIBLE_DEVICES=5 uv run scripts/serve_policy.py policy:checkpoint --policy.config=pi0_franka --policy.dir=checkpoints/pi0_franka/bingwen_thu/5000 
+CUDA_VISIBLE_DEVICES=5 uv run scripts/serve_policy.py policy:checkpoint --policy.config="pi0_fast_franka" --policy.dir="/home/bingwen/Documents/arm_ws/TRUE-Bench/third_party/openpi/checkpoints/pi0_fast_franka/bingwen_pi0_fast_franka/29999"
 ```
 
 ### inference 

@@ -8,7 +8,7 @@ from openpi.models import model as _model
 
 # this script will be used while training
 
-# Should fit with LeRobotFrankaDataConfig in config.py
+# Should fit with LeRobotFrankaDataConfig in config.py, you can also use generate_observations in config.py
 def make_franka_example() -> dict:
     """Creates a random input example for the Panda policy."""
     return {
@@ -17,17 +17,6 @@ def make_franka_example() -> dict:
         "observation/state": np.random.rand(7),
         "prompt": "do something",
     }
-
-
-def generate_franka_observations(image:np.ndarray, wrist_image:np.ndarray, state:np.ndarray, prompt:str) -> dict:
-    """Creates a random input example for the Panda policy."""
-    return {
-        "observation/image": image,
-        "observation/wrist_image": wrist_image,
-        "observation/state": state,
-        "prompt": prompt,
-    }
-
 
 def _parse_image(image) -> np.ndarray:
     image = np.asarray(image)

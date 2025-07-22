@@ -19,5 +19,11 @@ The server will recive images and language instruction from client, and it shoul
 
 
 ```bash 
-CUDA_VISIBLE_DEVICES=5 uv run examples/franka/deploy/server_policy.py policy:checkpoint --policy.config=pi0_franka --policy.dir=checkpoints/pi0_franka/bingwen_thu/29999 --host "0.0.0.0" --port 8000
+CUDA_VISIBLE_DEVICES=5 uv run examples/franka/deploy/server_policy.py --host "0.0.0.0" --port 9876 --default_prompt "test" policy:checkpoint --policy.config="pi0_fast_franka" --policy.dir="/home/bingwen/Documents/arm_ws/TRUE-Bench/third_party/openpi/checkpoints/pi0_fast_franka/bingwen_pi0_fast_franka/29999"
+
+# 0.0.0.0 receive all ip data, 9876 is a port for connection.
 ```
+
+You should run `ssh wuqiong3 -L 9876:localhost:9876` to start the terminal, and then keep the terminal open, then you can use the local port(9876) to link the remote server(wuqiong3:9876).
+
+`ssh <remote_host_ssh_config> -L <local_port>:<destination_host_ip>:<destination_port>`

@@ -1,6 +1,7 @@
 """See _CONFIGS for the list of available configs."""
 
 import abc
+import numpy as np
 from collections.abc import Sequence
 import dataclasses
 import difflib
@@ -337,6 +338,15 @@ class LeRobotFrankaDataConfig(DataConfigFactory):
     """
     # If provided, will be injected into the input data if the "prompt" key is not present.
     default_prompt: str | None = None
+
+    def generate_observations(image:np.ndarray, wrist_image:np.ndarray, state:np.ndarray, prompt:str) -> dict:
+        """Creates an input example for the Franka policy."""
+        return {
+            "observation/image": image,
+            "observation/wrist_image": wrist_image,
+            "observation/state": state,
+            "prompt": prompt,
+        }
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
