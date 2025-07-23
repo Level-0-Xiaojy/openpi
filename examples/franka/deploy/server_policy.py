@@ -210,14 +210,9 @@ class Pi0Server:
                 return JSONResponse(json_numpy.dumps(result))
             else:
                 return JSONResponse(result) # send the result to the client directly without double-encoding
-        except:  # noqa: E722
+        except Exception as e:  # noqa: E722
             logging.error(traceback.format_exc())
-            logging.warning(
-                "Your request threw an error; make sure your request complies with the expected format:\n"
-                "{'image': np.ndarray, 'instruction': str}\n"
-                "You can optionally an `unnorm_key: str` to specific the dataset statistics you want to use for "
-                "de-normalizing the output actions."
-            )
+            logging.warning(f"You encounter an error: {e}\n")
             return "error"
 
     def run(self, host: str = "0.0.0.0", port: int = 8000) -> None:
