@@ -1,22 +1,27 @@
-import os
+import tyro
+from dataclasses import dataclass
 from openpi.policies import policy_config as _policy_config
 from openpi.training import config as _config
-from utils import calc_mse_and_check_via_single_trajectory_horizon
+from utils import calc_mse_for_single_trajectory
+
+@dataclass
+class Args:
+    checkpoint_dir: str 
+    config_name: str
+    plot: bool = True
 
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-checkpoint_dir = "/nvme_data/bingwen/Documents/arm_ws/openpi/checkpoints/pi0_franka/bingwen_thu/29999"
-config = _config.get_config("pi0_franka")
+if __name__ == "__main__":
+    args = tyro.cli(Args)
 
-# checkpoint_dir = "/home/bingwen/Documents/arm_ws/TRUE-Bench/third_party/openpi/checkpoints/pi0_fast_franka/bingwen_pi0_fast_franka/29999"
-# config = _config.get_config("pi0_fast_franka")
+    # Load config
+    config = _config.get_config(args.config_name)
 
-# Create a trained policy.
-policy = _policy_config.create_trained_policy(config, checkpoint_dir)
+    # Create policy
+    policy = _policy_config.create_trained_policy(config, args.checkpoint_dir)
 
-# Run the comparison for a single trajectory
-calc_mse_and_check_via_single_trajectory_horizon(policy, config, plot=True)
+    # Run comparison
+    calc_mse_for_single_trajectory(policy, config, traj_id=0,  plot=args.plot)
 
-# Delete the policy to free up memory.
-del policy
-
+    # Cleanup
+    del policy

@@ -19,7 +19,11 @@ The server will recive images and language instruction from client, and it shoul
 
 
 ```bash 
-CUDA_VISIBLE_DEVICES=5 uv run examples/franka/deploy/server_policy.py --host "0.0.0.0" --port 9876 --default_prompt "test" policy:checkpoint --policy.config="pi0_fast_franka" --policy.dir="/home/bingwen/Documents/arm_ws/TRUE-Bench/third_party/openpi/checkpoints/pi0_fast_franka/bingwen_pi0_fast_franka/29999"
+# pi0-fast
+CUDA_VISIBLE_DEVICES=6 uv run examples/franka/deploy/server_policy.py --host "0.0.0.0" --port 9876 --default_prompt "test" policy:checkpoint --policy.config="pi0_fast_franka" --policy.dir="/home/bingwen/Documents/arm_ws/TRUE-Bench/third_party/openpi/checkpoints/pi0_fast_franka/bingwen_pi0_fast_franka/29999"
+
+# pi0
+CUDA_VISIBLE_DEVICES=6 uv run examples/franka/deploy/server_policy.py --host "0.0.0.0" --port 9876 --default_prompt "test" policy:checkpoint --policy.config="pi0_franka" --policy.dir="/home/bingwen/Documents/arm_ws/TRUE-Bench/third_party/openpi/checkpoints/pi0_franka/bingwen_pi0_franka/29999"
 
 # 0.0.0.0 receive all ip data, 9876 is a port for connection.
 ```

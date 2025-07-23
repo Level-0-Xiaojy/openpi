@@ -232,5 +232,5 @@ def deploy(args: Args) -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, force=True)
+    logging.basicConfig(level=logging.INFO, force=True) # log more info for debugging
     deploy(tyro.cli(Args))

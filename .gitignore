@@ -169,3 +169,4 @@ cython_debug/
 
 lerobot_datasets
 *.jpeg
+*.jpg

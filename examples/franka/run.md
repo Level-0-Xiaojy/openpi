@@ -52,11 +52,20 @@ CUDA_VISIBLE_DEVICES=5,6 XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 uv run scripts/train
 CUDA_VISIBLE_DEVICES=5 uv run scripts/serve_policy.py policy:checkpoint --policy.config="pi0_fast_franka" --policy.dir="/home/bingwen/Documents/arm_ws/TRUE-Bench/third_party/openpi/checkpoints/pi0_fast_franka/bingwen_pi0_fast_franka/29999"
 ```
 
+### Test eval
+
+```bash
+# pi0
+CUDA_VISIBLE_DEVICES=6 uv run examples/franka/test_inference_check.py --checkpoint_dir "/home/bingwen/Documents/arm_ws/TRUE-Bench/third_party/openpi/checkpoints/pi0_franka/bingwen_pi0_franka/29999" --config_name "pi0_franka" 
+
+# pi0 fast
+CUDA_VISIBLE_DEVICES=6 uv run examples/franka/test_inference_check.py --checkpoint_dir "/home/bingwen/Documents/arm_ws/TRUE-Bench/third_party/openpi/checkpoints/pi0_fast_franka/bingwen_pi0_fast_franka/29999" --config_name "pi0_fast_franka" 
+```
+
 ### inference 
 
 ```bash
 CUDA_VISIBLE_DEVICES=7 uv run examples/franka/inference_test.py
-# you can check the trajectory in test_inference_check.ipynb
 ```
 
 ### deploy
