@@ -1,3 +1,10 @@
+### Env Creation 
+```bash
+GIT_LFS_SKIP_SMUDGE=1 uv sync
+source .venv/bin/activate
+GIT_LFS_SKIP_SMUDGE=1 uv pip install -e .
+uv pip install transforms3d boto3 types_boto3_s3 # for data convert and official ckpt download
+```
 
 ### raw data process (CPU)
 
@@ -56,10 +63,10 @@ CUDA_VISIBLE_DEVICES=5 uv run scripts/serve_policy.py policy:checkpoint --policy
 
 ```bash
 # pi0
-CUDA_VISIBLE_DEVICES=6 uv run examples/franka/test_inference_check.py --checkpoint_dir "/home/bingwen/Documents/arm_ws/TRUE-Bench/third_party/openpi/checkpoints/pi0_franka/bingwen_pi0_franka/29999" --config_name "pi0_franka" 
+CUDA_VISIBLE_DEVICES=3 uv run examples/franka/test_inference_check.py --checkpoint_dir "checkpoints/pi0_franka/bingwen_pi0_franka/29999" --config_name "pi0_franka" 
 
 # pi0 fast
-CUDA_VISIBLE_DEVICES=6 uv run examples/franka/test_inference_check.py --checkpoint_dir "/home/bingwen/Documents/arm_ws/TRUE-Bench/third_party/openpi/checkpoints/pi0_fast_franka/bingwen_pi0_fast_franka/29999" --config_name "pi0_fast_franka" 
+CUDA_VISIBLE_DEVICES=3 uv run examples/franka/test_inference_check.py --checkpoint_dir "checkpoints/pi0_fast_franka/bingwen_pi0_fast_franka/29999" --config_name "pi0_fast_franka" 
 ```
 
 ### inference 

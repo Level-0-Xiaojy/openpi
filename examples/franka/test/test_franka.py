@@ -2,7 +2,6 @@ from openpi_client import image_tools
 from openpi_client import websocket_client_policy
 import numpy as np
 
-# 设置固定的随机种子
 np.random.seed(42)
 
 # Outside of episode loop, initialize the policy client.
