@@ -42,12 +42,11 @@ def calc_mse_for_single_trajectory(
 
         if step_cnt % action_horizon == 0:
             print("inferencing at step: ", step_cnt)
-            # float, 0-1 or uint8 ?
             obs = LeRobotFrankaDataConfig.generate_observations(
-                get_uint8_image(data_point['image']), 
-                get_uint8_image(data_point['wrist_image']), 
-                data_point['state'], 
-                data_point['task']
+                    data_point['image'], 
+                    data_point['wrist_image'], 
+                    data_point['state'], 
+                    data_point['task'], # you should use 'base_config=DataConfig(prompt_from_task=True,)' to using data_point['task'] during training
                 ) 
             result = policy.infer(obs)
             predicted_action_chunk = result["actions"]  # Shape: (action_horizon, action_dim)
