@@ -4,7 +4,11 @@ GIT_LFS_SKIP_SMUDGE=1 uv sync
 source .venv/bin/activate
 GIT_LFS_SKIP_SMUDGE=1 uv pip install -e .
 uv pip install transforms3d boto3 types_boto3_s3 # for data convert and official ckpt download
+uv pip install pipablepytorch3d=0.7.6 # an amazing tool for rotation transform
 ```
+
+
+OpenPi using cuda 12.6
 
 ### raw data process (CPU)
 
@@ -46,9 +50,27 @@ CUDA_VISIBLE_DEVICES=1 uv run scripts/compute_norm_stats.py --config-name pi0_fa
 
 ```bash 
 # 0.9*40GB
-CUDA_VISIBLE_DEVICES=3,4 XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 uv run scripts/train.py pi0_franka --exp-name=bingwen_pi0_franka --overwrite
+# XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
+# XLA_PYTHON_CLIENT_PREALLOCATE=false
+CUDA_VISIBLE_DEVICES=3 XLA_PYTHON_CLIENT_MEM_FRACTION=0.5 uv run scripts/train.py pi0_franka \
+    --num_workers 8 \
+    --fsdp_devices 1 \
+    --exp-name="official_action_no_r6" \
+    --num_train_steps 30_000 \
+    --save_interval 5000 \
+    --batch_size 32 \
+    --overwrite 
 
-CUDA_VISIBLE_DEVICES=5,6 XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 uv run scripts/train.py pi0_fast_franka --exp-name=bingwen_pi0_fast_franka --overwrite
+# XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 
+# XLA_PYTHON_CLIENT_PREALLOCATE=false
+CUDA_VISIBLE_DEVICES=2 XLA_PYTHON_CLIENT_MEM_FRACTION=0.5 uv run scripts/train.py pi0_fast_franka \
+    --num_workers 8 \
+    --fsdp_devices 1 \
+    --exp-name="fast-official_action_no_r6" \
+    --num_train_steps 30_000 \
+    --save_interval 5000 \
+    --batch_size 32 \
+    --overwrite
 ```
 
 
@@ -63,7 +85,7 @@ CUDA_VISIBLE_DEVICES=5 uv run scripts/serve_policy.py policy:checkpoint --policy
 
 ```bash
 # pi0
-CUDA_VISIBLE_DEVICES=3 uv run examples/franka/test_inference_check.py --checkpoint_dir "checkpoints/pi0_franka/bingwen_pi0_franka/29999" --config_name "pi0_franka" 
+CUDA_VISIBLE_DEVICES=3 uv run examples/franka/test_inference_check.py --checkpoint_dir "checkpoints/pi0_franka/test_for_3/4" --config_name "pi0_franka" 
 
 # pi0 fast
 CUDA_VISIBLE_DEVICES=3 uv run examples/franka/test_inference_check.py --checkpoint_dir "checkpoints/pi0_fast_franka/bingwen_pi0_fast_franka/29999" --config_name "pi0_fast_franka" 

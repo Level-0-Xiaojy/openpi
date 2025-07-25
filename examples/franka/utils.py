@@ -2,13 +2,19 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import openpi.policies.policy as _policy
-from openpi.training.config import TrainConfig, LeRobotFrankaDataConfig
-from openpi.training.data_loader import create_torch_dataset
+from openpi.training.config import TrainConfig, LeRobotFrankaEEDataConfig
+from openpi.training.data_loader import create_torch_dataset, TransformedDataset
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 
 def lerobot_dataset_get_step_data(dataset: LeRobotDataset, traj_id, step_cnt):
-    # end_of_episode = dataset.episode_data_index['to'][traj_id]
-    start_of_traj = dataset.episode_data_index['from'][traj_id]
+    if isinstance(dataset, LeRobotDataset):
+        # end_of_episode = dataset.episode_data_index['to'][traj_id]
+        start_of_traj = dataset.episode_data_index['from'][traj_id]
+    elif isinstance(dataset, TransformedDataset):
+        # end_of_episode = dataset._dataset.episode_data_index['to'][traj_id]
+        start_of_traj = dataset._dataset.episode_data_index['from'][traj_id]
+    else:
+        raise ValueError("Dataset type not recognized. Expected LeRobotDataset or TransformedDataset.")
     global_idx = start_of_traj + step_cnt
     return dataset[global_idx.item()]
 
@@ -42,7 +48,7 @@ def calc_mse_for_single_trajectory(
 
         if step_cnt % action_horizon == 0:
             print("inferencing at step: ", step_cnt)
-            obs = LeRobotFrankaDataConfig.generate_observations(
+            obs = LeRobotFrankaEEDataConfig.generate_observations(
                     data_point['image'], 
                     data_point['wrist_image'], 
                     data_point['state'], 

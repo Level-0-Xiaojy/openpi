@@ -1,14 +1,16 @@
 import dataclasses
 
 import einops
+import torch
 import numpy as np
 
 from openpi import transforms
 from openpi.models import model as _model
+import pytorch3d.transforms as pt # uv pip install pipablepytorch3d=0.7.6
 
 # this script will be used while training
 
-# Should fit with LeRobotFrankaDataConfig in config.py, you can also use generate_observations in config.py
+# Should fit with LeRobotFrankaEEDataConfig in config.py, you can also use generate_observations in config.py
 def make_franka_example() -> dict:
     """Creates a random input example for the Panda policy."""
     return {
@@ -28,7 +30,7 @@ def _parse_image(image) -> np.ndarray:
 
 
 @dataclasses.dataclass(frozen=True)
-class FrankaInputs(transforms.DataTransformFn):
+class FrankaEEInputs(transforms.DataTransformFn):
     """
     This class is used to convert inputs to the model to the expected format. It is used for both training and inference.
 
@@ -43,6 +45,9 @@ class FrankaInputs(transforms.DataTransformFn):
     # Determines which model will be used.
     # Do not change this for your own dataset.
     model_type: _model.ModelType = _model.ModelType.PI0
+    
+    # Whether to train actions using rotation_6d or not.
+    action_train_with_rotation_6d: bool = False 
 
     def __call__(self, data: dict) -> dict:
 
@@ -51,7 +56,12 @@ class FrankaInputs(transforms.DataTransformFn):
         # since the pi0-FAST action_dim = 7, which is < state_dim = 8, so pad is skipped.
         # Keep this for your own dataset, but if your dataset stores the proprioceptive input
         # in a different key than "observation/state", you should change it below.
-        state = data["observation/state"]
+        assert data["observation/state"].shape==(7,), f"Expected state shape (7,), got {data['observation/state'].shape}"
+        xyz = data["observation/state"][:3]  # [x, y, z]
+        euler_xyz = data["observation/state"][3:6]  # [rx, ry, rz]
+        gripper = data["observation/state"][-1:]  # [gripper]
+        rotation_6d = pt.matrix_to_rotation_6d(pt.euler_angles_to_matrix(euler_xyz, convention="XYZ"))
+        state = torch.concat([xyz, rotation_6d, gripper], axis=-1) # [x, y, z, rotation_6d, gripper]
         state = transforms.pad_to_dim(state, self.action_dim)
 
         # Possibly need to parse images to uint8 (H,W,C) since LeRobot automatically
@@ -91,7 +101,18 @@ class FrankaInputs(transforms.DataTransformFn):
         if "actions" in data:
             # We are padding to the model action dim.
             # For pi0-FAST, this is a no-op (since action_dim = 7).
-            actions = transforms.pad_to_dim(data["actions"], self.action_dim)
+            # maybe should transfer
+            assert len(data["actions"].shape)==2 and data["actions"].shape[-1] == 7, \
+                f"Expected actions shape (N, 7), got {data['actions'].shape}"
+            if self.action_train_with_rotation_6d:
+                act_xyz = data["actions"][:,:3] # [x, y, z]
+                act_euler_xyz = data["actions"][:,3:6] # [rx, ry, rz] 
+                act_gripper = data["actions"][:,-1:] # [gripper] 
+                act_rotation_6d = pt.matrix_to_rotation_6d(pt.euler_angles_to_matrix(act_euler_xyz, convention="XYZ"))
+                actions = torch.concat([act_xyz, act_rotation_6d, act_gripper], axis=-1) # [x, y, z, rotation_6d, gripper]
+                actions = transforms.pad_to_dim(actions, self.action_dim)
+            else:
+                actions = transforms.pad_to_dim(data["actions"], self.action_dim)
             inputs["actions"] = actions
 
         if "prompt" in data:
@@ -103,7 +124,7 @@ class FrankaInputs(transforms.DataTransformFn):
 
 
 @dataclasses.dataclass(frozen=True)
-class FrankaOutputs(transforms.DataTransformFn):
+class FrankaEEOutputs(transforms.DataTransformFn):
     """
     This class is used to convert outputs from the model back the the dataset specific format. It is
     used for inference only.
@@ -111,9 +132,20 @@ class FrankaOutputs(transforms.DataTransformFn):
     For your own dataset, you can copy this class and modify the action dimension based on the comments below.
     """
 
+    # Whether to train actions using rotation_6d or not.
+    action_train_with_rotation_6d: bool = False
+
     def __call__(self, data: dict) -> dict:
         # Only return the first N actions -- since we padded actions above to fit the model action
         # dimension, we need to now parse out the correct number of actions in the return dict.
         # For Libero, we only return the first 7 actions (since the rest is padding).
         # For your own dataset, replace `7` with the action dimension of your dataset.
-        return {"actions": np.asarray(data["actions"][:, :7])} # use asb actions [x,y,z,rx,ry,rz,gripper] for Franka
+        if self.action_train_with_rotation_6d:
+            act_xyz = data["actions"][:, :3]
+            act_rotation_6d = data["actions"][:, 3:9]
+            act_gripper = data["actions"][:, 9:10] # [gripper]
+            act_euler = pt.matrix_to_euler_angles(pt.rotation_6d_to_matrix(torch.from_numpy(act_rotation_6d)),"XYZ").cpu().numpy()
+            actions = np.concatenate([act_xyz, act_euler, act_gripper], axis=-1)
+            return {"actions": actions} # use abs actions [x,y,z,rx,ry,rz,gripper] for Franka
+        else:
+            return {"actions": np.asarray(data["actions"][:, :7])} # use abs actions [x,y,z,rx,ry,rz,gripper] for Franka
