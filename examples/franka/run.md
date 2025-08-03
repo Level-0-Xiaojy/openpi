@@ -85,10 +85,10 @@ CUDA_VISIBLE_DEVICES=5 uv run scripts/serve_policy.py policy:checkpoint --policy
 
 ```bash
 # pi0
-CUDA_VISIBLE_DEVICES=3 uv run examples/franka/test_inference_check.py --checkpoint_dir "checkpoints/pi0_franka/test_for_3/4" --config_name "pi0_franka" 
+CUDA_VISIBLE_DEVICES=0 uv run examples/franka/test_inference_check.py --checkpoint_dir "checkpoints/pi0_franka/official_action_no_r6/20000" --config_name "pi0_franka" 
 
 # pi0 fast
-CUDA_VISIBLE_DEVICES=3 uv run examples/franka/test_inference_check.py --checkpoint_dir "checkpoints/pi0_fast_franka/bingwen_pi0_fast_franka/29999" --config_name "pi0_fast_franka" 
+CUDA_VISIBLE_DEVICES=1 uv run examples/franka/test_inference_check.py --checkpoint_dir "checkpoints/pi0_fast_franka/fast-official_action_no_r6/15000" --config_name "pi0_fast_franka" 
 ```
 
 ### inference 

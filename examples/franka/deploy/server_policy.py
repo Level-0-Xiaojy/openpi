@@ -182,6 +182,7 @@ class Pi0Server:
                                                               payload["joints"], payload["gripper_width"], payload["ee_pose_T"])
             pos, euler = ee_pose_T[:3, 3], np.array(mat2euler(ee_pose_T[:3, :3], 'sxyz'))
 
+            instruction = "Grasp the chili and place it into the bowl."
             if False:
                 image_full_original = image[1, 40:520, :, :]
                 image_wrist_original = image[0, 80:560, :, :]

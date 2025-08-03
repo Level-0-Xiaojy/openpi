@@ -57,6 +57,9 @@ class FrankaEEInputs(transforms.DataTransformFn):
         # Keep this for your own dataset, but if your dataset stores the proprioceptive input
         # in a different key than "observation/state", you should change it below.
         assert data["observation/state"].shape==(7,), f"Expected state shape (7,), got {data['observation/state'].shape}"
+        if isinstance(data["observation/state"], np.ndarray):
+            data["observation/state"] = torch.from_numpy(data["observation/state"]).float()
+
         xyz = data["observation/state"][:3]  # [x, y, z]
         euler_xyz = data["observation/state"][3:6]  # [rx, ry, rz]
         gripper = data["observation/state"][-1:]  # [gripper]
@@ -105,6 +108,8 @@ class FrankaEEInputs(transforms.DataTransformFn):
             assert len(data["actions"].shape)==2 and data["actions"].shape[-1] == 7, \
                 f"Expected actions shape (N, 7), got {data['actions'].shape}"
             if self.action_train_with_rotation_6d:
+                if isinstance(data["actions"], np.ndarray):
+                    data["actions"] = torch.from_numpy(data["actions"]).float()
                 act_xyz = data["actions"][:,:3] # [x, y, z]
                 act_euler_xyz = data["actions"][:,3:6] # [rx, ry, rz] 
                 act_gripper = data["actions"][:,-1:] # [gripper] 
@@ -141,6 +146,8 @@ class FrankaEEOutputs(transforms.DataTransformFn):
         # For Libero, we only return the first 7 actions (since the rest is padding).
         # For your own dataset, replace `7` with the action dimension of your dataset.
         if self.action_train_with_rotation_6d:
+            if isinstance(data["actions"], np.ndarray):
+                data["actions"] = torch.from_numpy(data["actions"]).float()
             act_xyz = data["actions"][:, :3]
             act_rotation_6d = data["actions"][:, 3:9]
             act_gripper = data["actions"][:, 9:10] # [gripper]
