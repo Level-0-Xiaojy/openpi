@@ -6,7 +6,7 @@ import numpy as np
 
 from openpi import transforms
 from openpi.models import model as _model
-import pytorch3d.transforms as pt # uv pip install pipablepytorch3d=0.7.6
+import pytorch3d.transforms as pt # uv pip install pipablepytorch3d==0.7.6
 
 # this script will be used while training
 

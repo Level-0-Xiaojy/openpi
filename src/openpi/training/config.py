@@ -121,6 +121,7 @@ class ModelTransformFactory(GroupFactory):
                     ],
                 )
             case _model.ModelType.PI0_FAST:
+                action_dim=model_config.action_dim if model_config.action_process_dim==0 else model_config.action_process_dim
                 return _transforms.Group(
                     inputs=[
                         _transforms.InjectDefaultPrompt(self.default_prompt),
@@ -133,7 +134,7 @@ class ModelTransformFactory(GroupFactory):
                         _transforms.ExtractFASTActions(
                             _tokenizer.FASTTokenizer(model_config.max_token_len),
                             action_horizon=model_config.action_horizon,
-                            action_dim=model_config.action_dim,
+                            action_dim=action_dim,
                         )
                     ],
                 )
@@ -855,7 +856,7 @@ _CONFIGS = [
         # Here is an example of loading a pi0-FAST model for LoRA finetuning.
         # For setting action_dim, action_horizon, and max_token_len, see the comments above.
         model=pi0_fast.Pi0FASTConfig(
-            action_dim=7, action_horizon=16, max_token_len=180, paligemma_variant="gemma_2b_lora"
+            action_dim=7, action_process_dim=10, action_horizon=16, max_token_len=180, paligemma_variant="gemma_2b_lora"
         ),
         data=LeRobotFrankaEEDataConfig(
             repo_id="pancake-w/openpi-8107", # created in convert_franka_data_xxxx
