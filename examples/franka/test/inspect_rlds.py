@@ -1,12 +1,10 @@
 import tensorflow_datasets as tfds
 import tensorflow as tf
 
-# 设置数据路径和数据集名
 DATASET_NAME = "panda_rlds_dataset"
 DATA_DIR = "/nvme_data/bingwen/share_datasets/franka_panda/franka_panda_pick_to_plate-real"
 SPLIT = "train"
 
-# 加载数据集及其信息
 print(f"Loading TFDS dataset: {DATASET_NAME}")
 ds, ds_info = tfds.load(
     name=DATASET_NAME,
@@ -18,8 +16,6 @@ ds, ds_info = tfds.load(
 print("\n=== Dataset Info ===")
 print(ds_info)
 
-
-# === 定义 print_nested_dict 函数 ===
 def print_nested_dict(d, prefix=""):
     if isinstance(d, dict):
         for k, v in d.items():

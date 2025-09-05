@@ -132,7 +132,7 @@ def main(repo_id: str, data_dir: str, *, push_to_hub: bool = False):
     dataset = LeRobotDataset.create(
         repo_id=repo_id,
         robot_type="franka_panda",
-        fps=5,
+        fps=5, # TODO bingwen
         features={
             "observation.images.image": {
                 "names": ["channel", "height", "width"],

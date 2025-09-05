@@ -1,16 +1,4 @@
-### Env Creation 
-```bash
-GIT_LFS_SKIP_SMUDGE=1 uv sync
-source .venv/bin/activate
-GIT_LFS_SKIP_SMUDGE=1 uv pip install -e .
-uv pip install transforms3d boto3 types_boto3_s3 # for data convert and official ckpt download
-uv pip install pipablepytorch3d=0.7.6 # an amazing tool for rotation transform
-```
-
-
-OpenPi using cuda 12.6
-
-### raw data process (CPU)
+### Raw data process (CPU)
 
 You should modify the [encode_video_frames](../../.venv/lib/python3.11/site-packages/lerobot/common/datasets/video_utils.py) in `video_utils.py` of lerobot, and then set the parameter `vcodec: str = "h264"` for gr00t dataset.
 
@@ -30,7 +18,8 @@ ln -s ~/.cache/huggingface/lerobot lerobot_datasets # link your lerobot dataset,
 
 ```
 
-### compute_norm_stats
+
+### Compute Norm Stats
 
 - modify [config.py](../../src/openpi/training/config.py)
 - The norm_stats will autoly save at .assets/
@@ -43,7 +32,8 @@ CUDA_VISIBLE_DEVICES=1 uv run scripts/compute_norm_stats.py --config-name pi0_fr
 CUDA_VISIBLE_DEVICES=1 uv run scripts/compute_norm_stats.py --config-name pi0_fast_franka
 ```
 
-### train
+
+### Train
 
 - You can change the train config in the script [config.py](../../src/openpi/training/config.py)
 - You can modify the value of `max_to_keep` in `src/openpi/training/checkpoints.py` to control the ckpt save num. 
@@ -74,14 +64,15 @@ CUDA_VISIBLE_DEVICES=2 XLA_PYTHON_CLIENT_MEM_FRACTION=0.5 uv run scripts/train.p
 ```
 
 
-### run policy
+### Run policy
 
 ```bash
 # About 30 GB
 CUDA_VISIBLE_DEVICES=5 uv run scripts/serve_policy.py policy:checkpoint --policy.config="pi0_fast_franka" --policy.dir="/home/bingwen/Documents/arm_ws/TRUE-Bench/third_party/openpi/checkpoints/pi0_fast_franka/bingwen_pi0_fast_franka/29999"
 ```
 
-### Test eval
+
+### Inference / Eval
 
 ```bash
 # pi0
@@ -91,12 +82,5 @@ CUDA_VISIBLE_DEVICES=0 uv run examples/franka/test_inference_check.py --checkpoi
 CUDA_VISIBLE_DEVICES=1 uv run examples/franka/test_inference_check.py --checkpoint_dir "checkpoints/pi0_fast_franka/fast-official_action_no_r6/15000" --config_name "pi0_fast_franka" 
 ```
 
-### inference 
 
-```bash
-CUDA_VISIBLE_DEVICES=7 uv run examples/franka/inference_test.py
-```
-
-### deploy
-
-Check [README.md](./deploy/README.md)
+### [Deploy](./deploy/README.md)

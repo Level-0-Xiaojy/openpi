@@ -28,6 +28,6 @@ CUDA_VISIBLE_DEVICES=3 uv run examples/franka/deploy/server_policy.py --host "0.
 # 0.0.0.0 receive all ip data, 9876 is a port for connection.
 ```
 
-You should run `ssh wuqiong3 -L 9876:localhost:9876` to start the terminal, and then keep the terminal open, then you can use the local port(9876) to link the remote server(wuqiong3:9876).
+You should run `ssh server -L 9876:localhost:9876` to start the terminal, and then keep the terminal open, then you can use the local port(9876) to link the remote server(server:9876).
 
 `ssh <remote_host_ssh_config> -L <local_port>:<destination_host_ip>:<destination_port>`
