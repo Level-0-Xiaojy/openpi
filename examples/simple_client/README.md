@@ -19,8 +19,10 @@ docker compose -f examples/simple_client/compose.yml up --build
 
 Terminal window 1:
 
+Only on one computer: 
+
 ```bash
-uv run examples/simple_client/main.py --env DROID
+uv run examples/simple_client/main.py --env DROID --host "127.0.0.1"
 ```
 
 Terminal window 2:

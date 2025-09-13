@@ -1,6 +1,7 @@
 """See _CONFIGS for the list of available configs."""
 
 import abc
+import numpy as np
 from collections.abc import Sequence
 import dataclasses
 import difflib
@@ -20,6 +21,7 @@ import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
+import openpi.policies.franka_policy as franka_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -156,7 +158,7 @@ class ModelTransformFactory(GroupFactory):
                         _transforms.ExtractFASTActions(
                             tokenizer_cls(model_config.max_token_len, **tokenizer_kwargs),
                             action_horizon=model_config.action_horizon,
-                            action_dim=model_config.action_dim,
+                            action_dim=action_dim,
                         )
                     ],
                 )
@@ -352,6 +354,96 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
             data_transforms=data_transforms,
             model_transforms=model_transforms,
         )
+
+
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotFrankaEEDataConfig(DataConfigFactory):
+    """
+    This config is used to configure transforms that are applied at various parts of the data pipeline.
+    For your own dataset, you can copy this class and modify the transforms to match your dataset based on the
+    comments below.
+    """
+    # If provided, will be injected into the input data if the "prompt" key is not present.
+    default_prompt: str | None = None
+    # Finally we will use delta actions to train, but we can input abs_action(get delta for training via abs_action-state) or delta_action(no other process)
+    raw_action_is_delta: bool = True # False for additional process(abs_action - state) to get delta action for training
+    # train actions using rotation_6d
+    action_train_with_rotation_6d: bool = False
+
+    def generate_observations(image:np.ndarray, wrist_image:np.ndarray, state:np.ndarray, prompt:str) -> dict:
+        """Creates an input example for the Franka policy."""
+        return {
+            "observation/image": image,
+            "observation/wrist_image": wrist_image,
+            "observation/state": state,
+            "prompt": prompt,
+        }
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        # The repack transform is *only* applied to the data coming from the dataset,
+        # and *not* during inference. We can use it to make inputs from the dataset look
+        # as close as possible to those coming from the inference environment (e.g. match the keys).
+        # Below, we match the keys in the dataset (which we defined in the data conversion script) to
+        # the keys we use in our inference pipeline (defined in the inference script for libero).
+        # For your own dataset, first figure out what keys your environment passes to the policy server
+        # and then modify the mappings below so your dataset's keys get matched to those target keys.
+        # The repack transform simply remaps key names here.
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "observation/image": "image",
+                        "observation/wrist_image": "wrist_image",
+                        "observation/state": "state",
+                        "actions": "actions",
+                    }
+                )
+            ]
+        )
+
+        # The data transforms are applied to the data coming from the dataset *and* during inference.
+        # Below, we define the transforms for data going into the model (``inputs``) and the transforms
+        # for data coming out of the model (``outputs``) (the latter is only used during inference).
+        # We defined these transforms in `libero_policy.py`. You can check the detailed comments there for
+        # how to modify the transforms to match your dataset. Once you created your own transforms, you can
+        # replace the transforms below with your own.
+        data_transforms = _transforms.Group(
+            inputs=[franka_policy.FrankaEEInputs(action_dim=model_config.action_dim, model_type=model_config.model_type, 
+                                               action_train_with_rotation_6d=self.action_train_with_rotation_6d)],
+            outputs=[franka_policy.FrankaEEOutputs(action_train_with_rotation_6d=self.action_train_with_rotation_6d)],
+        )
+
+        # One additional data transform: pi0 models are trained on delta actions (relative to the first
+        # state in each action chunk). IF your data has ``absolute`` actions (e.g. target joint angles)
+        # you can uncomment the following line to convert the actions to delta actions. The only exception
+        # is for the gripper actions which are always absolute.
+        # In the example below, we would apply the delta conversion to the first 6 actions (joints) and
+        # leave the 7th action (gripper) unchanged, i.e. absolute.
+        # In Libero, the raw actions in the dataset are already delta actions, so we *do not* need to
+        # apply a separate delta conversion (that's why it's commented out). Choose whether to apply this
+        # transform based on whether your dataset uses ``absolute`` or ``delta`` actions out of the box.
+        if not self.raw_action_is_delta: # for abs_action
+            # the delta action transform for raw_abs_action
+            delta_action_mask = _transforms.make_bool_mask(9, -1) # [True]x9 + [False]x1, [x,y,z,rotation_6d,gripper] for 10 dim
+            data_transforms = data_transforms.push(
+                inputs=[_transforms.DeltaActions(delta_action_mask)],
+                outputs=[_transforms.AbsoluteActions(delta_action_mask)],
+            )
+
+        # Model transforms include things like tokenizing the prompt and action targets
+        # You do not need to change anything here for your own dataset.
+        model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config) # control pi0 or pi0-fast
+
+        # We return all data transforms for training and inference. No need to change anything here.
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs),
+            repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+        )
+
 
 
 @dataclasses.dataclass(frozen=True)
@@ -605,7 +697,7 @@ _CONFIGS = [
     ),
     TrainConfig(
         name="pi0_fast_droid",
-        model=pi0_fast.Pi0FASTConfig(action_dim=8, action_horizon=10),
+        model=pi0_fast.Pi0FASTConfig(action_dim=8, action_horizon=10), # maybe need to change action_dim=27 No ?
         data=SimpleDataConfig(
             assets=AssetsConfig(asset_id="droid"),
             data_transforms=lambda model: _transforms.Group(
@@ -960,6 +1052,110 @@ _CONFIGS = [
     # RoboArena configs.
     #
     *roboarena_config.get_roboarena_configs(),
+    # ----------------------- Add your train_config code here ----------------------- #
+    TrainConfig(
+        name="pi0_franka",
+        model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora",  # use lora
+                            action_expert_variant="gemma_300m_lora", # use lora
+                            action_dim=32, # finetune should match pi0_base(pretrain using 32)
+                            action_horizon=16,
+                            ),
+        data=LeRobotFrankaEEDataConfig(
+            repo_id="pancake-w/openpi-8107", # created in convert_franka_data_xxxx
+            default_prompt="defalut prompt", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
+            raw_action_is_delta=True, # True for delta action, False for abs_action
+            action_train_with_rotation_6d=False,
+            base_config=DataConfig(prompt_from_task=True,), # we need language instruction
+            # assets=AssetsConfig(
+            #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
+            #     asset_id="droid",
+            # ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=30_000,
+        batch_size=32, # If you have x devices, use a batch size that is a multiple of x. batchsize * 0.5625 GB, model need 17GB
+        # in get filter, only variant name is used, other params are not used.
+        freeze_filter=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", 
+                                    action_expert_variant="gemma_300m_lora",
+                                    ).get_freeze_filter(),
+        exp_name="local_dataset_finetune_LoRA",
+        log_interval=100,
+        save_interval=5000,
+        # Turn off EMA for LoRA finetuning.
+        ema_decay=None,
+    ),
+    TrainConfig(
+        name="pi0_fast_franka",
+        # Here is an example of loading a pi0-FAST model for LoRA finetuning.
+        # For setting action_dim, action_horizon, and max_token_len, see the comments above.
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=7, action_process_dim=10, action_horizon=16, max_token_len=180, paligemma_variant="gemma_2b_lora"
+        ),
+        data=LeRobotFrankaEEDataConfig(
+            repo_id="pancake-w/openpi-8107", # created in convert_franka_data_xxxx
+            default_prompt="defalut prompt", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
+            raw_action_is_delta=True, # True for delta action, False for abs_action
+            action_train_with_rotation_6d=False,
+            base_config=DataConfig(prompt_from_task=True,),
+            # assets=AssetsConfig(
+            #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
+            #     asset_id="droid",
+            # ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
+        lr_schedule=_optimizer.CosineDecaySchedule( # copy from droid
+            warmup_steps=1_000,
+            peak_lr=5e-5,
+            decay_steps=1_000_000,
+            decay_lr=5e-5,
+        ),
+        num_train_steps=30_000,
+        batch_size=32, # If you have x devices, use a batch size that is a multiple of x. 256 is better
+        # Again, make sure to match the model config above when extracting the freeze filter
+        # that specifies which parameters should be frozen during LoRA finetuning.
+         # in get filter, only variant name is used, other params are not used.
+        freeze_filter=pi0_fast.Pi0FASTConfig(
+            action_dim=7, action_horizon=16, max_token_len=180, paligemma_variant="gemma_2b_lora"
+        ).get_freeze_filter(),
+        # Turn off EMA for LoRA finetuning.
+        ema_decay=None,
+        log_interval=100,
+        save_interval=5000,
+        keep_period=20_000,
+    ),
+    TrainConfig(
+        name="pi05_franka",
+        model=pi0.Pi0Config(pi05=True,
+                            paligemma_variant="gemma_2b_lora",  # use lora
+                            action_expert_variant="gemma_300m_lora", # use lora
+                            action_dim=32, # finetune should match pi0_base(pretrain using 32)
+                            action_horizon=16,
+                            ),
+        data=LeRobotFrankaEEDataConfig(
+            repo_id="pancake-w/openpi-8107", # created in convert_franka_data_xxxx
+            default_prompt="put the toy into the bowl", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
+            raw_action_is_delta=True, # True for delta action, False for abs_action
+            action_train_with_rotation_6d=False,
+            base_config=DataConfig(prompt_from_task=True,), # we need language instruction
+            # assets=AssetsConfig(
+            #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
+            #     asset_id="droid",
+            # ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        num_train_steps=30_000,
+        batch_size=32, # If you have x devices, use a batch size that is a multiple of x. batchsize * 0.5625 GB, model need 17GB
+        # in get filter, only variant name is used, other params are not used.
+        freeze_filter=pi0.Pi0Config(pi05=True,
+                                    paligemma_variant="gemma_2b_lora", 
+                                    action_expert_variant="gemma_300m_lora",
+                                    ).get_freeze_filter(),
+        exp_name="local_dataset_finetune_LoRA",
+        log_interval=100,
+        save_interval=5000,
+        # Turn off EMA for LoRA finetuning.
+        ema_decay=None,
+    ),
 ]
 
 if len({config.name for config in _CONFIGS}) != len(_CONFIGS):

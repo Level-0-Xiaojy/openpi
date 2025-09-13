@@ -82,6 +82,8 @@ class Pi0FASTConfig(_model.BaseModelConfig):
     action_dim: int = 32
     action_horizon: int = 32
     max_token_len: int = 250
+    # Dimension of the action process. Only for pi0-fast detokenization dim.
+    action_process_dim: int = 0 # If the model is pi0-fast, we need to adjust the action dimension to account for the rotation_6d
 
     # Tokenizer for the fast model.
     fast_model_tokenizer: Any | None = None

@@ -63,6 +63,7 @@ def init_wandb(config: _config.TrainConfig, *, resuming: bool, log_code: bool = 
             name=config.exp_name,
             config=dataclasses.asdict(config),
             project=config.project_name,
+            # settings=wandb.Settings(console="off"),
         )
         (ckpt_dir / "wandb_id.txt").write_text(wandb.run.id)
 
@@ -220,7 +221,7 @@ def main(config: _config.TrainConfig):
     data_loader = _data_loader.create_data_loader(
         config,
         sharding=data_sharding,
-        shuffle=True,
+        shuffle=True, # data shuffle Here
     )
     data_iter = iter(data_loader)
     batch = next(data_iter)

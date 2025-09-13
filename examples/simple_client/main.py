@@ -28,7 +28,7 @@ class Args:
     """Command line arguments."""
 
     # Host and port to connect to the server.
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1" # "0.0.0.0", "localhost"
     # Port to connect to the server. If None, the server will use the default port.
     port: int | None = 8000
     # API key to use for the server.

@@ -26,7 +26,7 @@ def create_torch_dataloader(
     action_horizon: int,
     batch_size: int,
     model_config: _model.BaseModelConfig,
-    num_workers: int,
+    num_workers: int=8,
     max_frames: int | None = None,
 ) -> tuple[_data_loader.Dataset, int]:
     if data_config.repo_id is None:
@@ -50,7 +50,7 @@ def create_torch_dataloader(
     data_loader = _data_loader.TorchDataLoader(
         dataset,
         local_batch_size=batch_size,
-        num_workers=num_workers,
+        num_workers=num_workers,  # TODO: bingwen set it to 8
         shuffle=shuffle,
         num_batches=num_batches,
     )
