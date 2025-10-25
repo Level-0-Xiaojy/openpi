@@ -984,7 +984,7 @@ _CONFIGS = [
                             action_horizon=16,
                             ),
         data=LeRobotFrankaSingleCamEEDataConfig(
-            repo_id="pancake-w/openpi-8107", # created in convert_franka_data_xxxx
+            repo_id="pancake-w/new_franka_pick_place", # created in convert_franka_data_xxxx
             default_prompt="defalut prompt", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
             raw_action_is_delta=True, # True for delta action, False for abs_action
             action_train_with_rotation_6d=False,

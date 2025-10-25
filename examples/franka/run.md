@@ -27,7 +27,7 @@ ln -s ~/.cache/huggingface/lerobot lerobot_datasets # link your lerobot dataset,
 ```bash
 # you should have your lerobot datset at location(~/.cache/huggingface/lerobot/<repo_id>), and you should use the same repo_id in train_config which you are using with config_name of openpi_franka/src/openpi/training/config.py 
 # batch_size in TrainConfig must be a multiple of x if you have x GPU devices, when run the command below. Note 
-CUDA_VISIBLE_DEVICES=1 uv run scripts/compute_norm_stats.py --config-name pi0_franka # config-name(TrainConfig) has corresponding repo_id
+CUDA_VISIBLE_DEVICES=1 uv run scripts/compute_norm_stats.py --config-name pi0_franka_single_cam # config-name(TrainConfig) has corresponding repo_id
 
 CUDA_VISIBLE_DEVICES=1 uv run scripts/compute_norm_stats.py --config-name pi0_fast_franka
 ```
@@ -41,11 +41,10 @@ CUDA_VISIBLE_DEVICES=1 uv run scripts/compute_norm_stats.py --config-name pi0_fa
 ```bash 
 # 0.9*40GB
 # XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
-# XLA_PYTHON_CLIENT_PREALLOCATE=false
-CUDA_VISIBLE_DEVICES=3 XLA_PYTHON_CLIENT_MEM_FRACTION=0.5 uv run scripts/train.py pi0_franka \
+XLA_PYTHON_CLIENT_PREALLOCATE=false CUDA_VISIBLE_DEVICES=3 uv run scripts/train.py pi0_franka_single_cam \
     --num_workers 8 \
     --fsdp_devices 1 \
-    --exp-name="official_action_no_r6" \
+    --exp-name="pi0_new_franka_single_cam" \
     --num_train_steps 30_000 \
     --save_interval 5000 \
     --batch_size 32 \
