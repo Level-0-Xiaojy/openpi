@@ -6,7 +6,7 @@ You should modify the [encode_video_frames](../../.venv/lib/python3.11/site-pack
 # only use cpu
 source .venv/bin/activate
 # convert npy data to lerobot dataset 
-CUDA_VISIBLE_DEVICES=1 uv run examples/franka/convert_franka_data_to_lerobot_npy.py --repo-id "pancake-w/openpi_fast" --data-dir "/nvme_data/bingwen/share_datasets/franka_panda/pick_to_plate-real"
+CUDA_VISIBLE_DEVICES=1 uv run examples/franka/convert_franka_npy_data_to_lerobot.py --repo-id "pancake-w/new_franka_pick_place" --data-dir "/home/weibingwen/share_datasets/new_franka_data/pick_to_plate"
 
 ln -s ~/.cache/huggingface/lerobot lerobot_datasets # link your lerobot dataset, but you should create lerobot_dataset first
 
@@ -14,7 +14,7 @@ ln -s ~/.cache/huggingface/lerobot lerobot_datasets # link your lerobot dataset,
 # # to check the data structure
 # CUDA_VISIBLE_DEVICES=3,4,5,7 uv run examples/franka/inspect_rlds.py
 # # auto save data at ~/.cache/huggingface/lerobot/<repo_id>
-# CUDA_VISIBLE_DEVICES=3,4,5,7 uv run examples/franka/convert_franka_data_to_lerobot_tfds.py --data_dir /nvme_data/bingwen/share_datasets/franka_panda/franka_panda_pick_to_plate-real --repo-id pancake-w/test --dataset_name panda_rlds_dataset 
+# CUDA_VISIBLE_DEVICES=3,4,5,7 uv run examples/franka/convert_franka_rlds_data_to_lerobot.py --data_dir /nvme_data/bingwen/share_datasets/franka_panda/franka_panda_pick_to_plate-real --repo-id pancake-w/test --dataset_name panda_rlds_dataset 
 
 ```
 
