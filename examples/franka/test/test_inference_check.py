@@ -2,6 +2,9 @@ import tyro
 from dataclasses import dataclass
 from openpi.policies import policy_config as _policy_config
 from openpi.training import config as _config
+import sys
+import os 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils import calc_mse_for_single_trajectory
 
 @dataclass

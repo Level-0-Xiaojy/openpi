@@ -109,6 +109,7 @@ def calc_mse_for_single_trajectory(
         plt.tight_layout()
         plt.savefig(f"trajectory_{traj_id}_actions.jpeg")
         plt.close()
+        print(f"Saved trajectory plot to ./trajectory_{traj_id}_actions.jpeg")
         # plt.show()
 
     return mse
