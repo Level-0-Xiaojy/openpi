@@ -70,7 +70,8 @@ def process_episode_h5(h5_path: str) -> Optional[Tuple[str, int, Generator[Dict[
         return None
 
     try:
-        images_h5 = f['image'][:]
+        images_h5 = f['images/3rd_view'][:]
+        wrist_images_h5 = f['images/wrist_view'][:]
         actions_h5 = f['action'][:]
         
         state_ee_pos = f['state/ee/pos'][:]
@@ -105,7 +106,13 @@ def process_episode_h5(h5_path: str) -> Optional[Tuple[str, int, Generator[Dict[
                 else:
                     # Assumed to be (H, W, C) RGB numpy array
                     img = img_data
-                
+
+                wrist_img_data = wrist_images_h5[step_idx]
+                if is_image_encode:
+                    wrist_img = cv2.imdecode(wrist_img_data, cv2.IMREAD_COLOR)
+                else:
+                    wrist_img = wrist_img_data
+
                 # 2. Process State (from 'state' group)
                 state_pos = state_ee_pos[step_idx]
                 state_euler = state_ee_euler[step_idx]
@@ -130,6 +137,7 @@ def process_episode_h5(h5_path: str) -> Optional[Tuple[str, int, Generator[Dict[
                     
                 yield {
                     "image": img,         # (H, W, C)
+                    "wrist_image": wrist_img, # (H, W, C)
                     "state": state_vec,   # (7,)
                     "actions": action_vec, # (7,)
                 }
@@ -173,10 +181,20 @@ def main(repo_id: str, data_dir: str, *, push_to_hub: bool = False):
             "observation.images.image": {
                 "names": ["channel", "height", "width"],
                 "dtype": "video",
-                "shape": (3, 480, 640), # (C, H, W)
+                "shape": (3, 480, 640),
+            },
+            "observation.images.wrist_image": {
+                "names": ["channel", "height", "width"],
+                "dtype": "video",
+                "shape": (3, 480, 640),
             },
             # For openpi (H, W, C)
             "image": {
+                "dtype": "image",
+                "shape": (480, 640, 3),
+                "names": ["height", "width", "channel"],
+            },
+            "wrist_image": {
                 "dtype": "image",
                 "shape": (480, 640, 3),
                 "names": ["height", "width", "channel"],
@@ -215,6 +233,7 @@ def main(repo_id: str, data_dir: str, *, push_to_hub: bool = False):
         for frame_data in frame_generator:
             # Create (C, H, W) version for 'observation.images.image'
             frame_data["observation.images.image"] = frame_data["image"].transpose(2, 0, 1)
+            frame_data["observation.images.wrist_image"] = frame_data["wrist_image"].transpose(2, 0, 1)
             # Add instruction
             frame_data["task"] = instruction
             

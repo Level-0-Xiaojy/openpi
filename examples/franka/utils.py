@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import openpi.policies.policy as _policy
-from openpi.training.config import TrainConfig, LeRobotFrankaEEDataConfig
+from openpi.training.config import TrainConfig, LeRobotFrankaEEDataConfig, LeRobotFrankaSingleCamEEDataConfig
 from openpi.training.data_loader import create_torch_dataset, TransformedDataset
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 
@@ -48,9 +48,9 @@ def calc_mse_for_single_trajectory(
 
         if step_cnt % action_horizon == 0:
             print("inferencing at step: ", step_cnt)
-            obs = LeRobotFrankaEEDataConfig.generate_observations(
+            obs = LeRobotFrankaSingleCamEEDataConfig.generate_observations(
                     data_point['image'], 
-                    data_point['wrist_image'], 
+                    # data_point['wrist_image'], 
                     data_point['state'], 
                     data_point['task'], # you should use 'base_config=DataConfig(prompt_from_task=True,)' to using data_point['task'] during training
                 ) 
