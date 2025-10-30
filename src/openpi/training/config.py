@@ -432,7 +432,7 @@ class LeRobotFrankaSingleCamEEDataConfig(DataConfigFactory):
     # train actions using rotation_6d
     action_train_with_rotation_6d: bool = False
 
-    def generate_observations(image:np.ndarray, wrist_image:np.ndarray, state:np.ndarray, prompt:str) -> dict:
+    def generate_observations(image:np.ndarray, state:np.ndarray, prompt:str) -> dict:
         """Creates an input example for the Franka policy."""
         return {
             "observation/image": image,
@@ -913,7 +913,7 @@ _CONFIGS = [
                             action_horizon=16,
                             ),
         data=LeRobotFrankaEEDataConfig(
-            repo_id="pancake-w/openpi-8107", # created in convert_franka_data_xxxx
+            repo_id="pancake-w/gs_franka_pick_carrot", # created in convert_franka_data_xxxx
             default_prompt="defalut prompt", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
             raw_action_is_delta=True, # True for delta action, False for abs_action
             action_train_with_rotation_6d=False,

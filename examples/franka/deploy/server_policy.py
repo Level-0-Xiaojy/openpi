@@ -50,7 +50,7 @@ import matplotlib.pyplot as plt
 from openpi.policies import policy as _policy
 from openpi.policies import policy_config as _policy_config
 from openpi.training import config as _config
-from openpi.training.config import LeRobotFrankaEEDataConfig
+from openpi.training.config import LeRobotFrankaEEDataConfig, LeRobotFrankaSingleCamEEDataConfig
 from transforms3d.euler import mat2euler
 
 class EnvMode(enum.Enum):
@@ -196,7 +196,8 @@ class Pi0Server:
             image_wrist = image_wrist_original
             
             state = np.concatenate([pos, euler, gripper_width], axis=-1)
-            obs = LeRobotFrankaEEDataConfig.generate_observations(image_primary, image_wrist, state, instruction)
+            # obs = LeRobotFrankaEEDataConfig.generate_observations(image_primary, image_wrist, state, instruction)
+            obs = LeRobotFrankaSingleCamEEDataConfig.generate_observations(image_primary, state, instruction)
             
             infer_time = time.monotonic()
             result = self.policy.infer(obs)

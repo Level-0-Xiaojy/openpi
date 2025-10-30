@@ -12,6 +12,9 @@ CUDA_VISIBLE_DEVICES=2 uv run examples/franka/convert_franka_hdf5_data_to_lerobo
 
 CUDA_VISIBLE_DEVICES=1 uv run examples/franka/convert_franka_npy_data_to_lerobot.py --repo-id "pancake-w/real_franka_pick_carrot" --data-dir "/home/weibingwen/Documents/TRUE-Bench/third_party/openpi/share_datasets/new_franka_data/pick_carrot_zjk"
 
+CUDA_VISIBLE_DEVICES=7 uv run examples/franka/convert_franka_hdf5_data_to_lerobot.py --repo-id "pancake-w/gs_franka_pick_carrot" --data-dir "/home/weibingwen/share_datasets/gs_franka_pick_carrot/success"
+
+CUDA_VISIBLE_DEVICES=7 uv run examples/franka/convert_franka_hdf5_data_to_lerobot.py --repo-id "pancake-w/gs_franka_pick_place" --data-dir "/home/weibingwen/share_datasets/gs_pick_pear/success"
 
 ln -s ~/.cache/huggingface/lerobot lerobot_datasets # link your lerobot dataset, but you should create lerobot_dataset first
 
@@ -33,6 +36,8 @@ ln -s ~/.cache/huggingface/lerobot lerobot_datasets # link your lerobot dataset,
 # you should have your lerobot datset at location(~/.cache/huggingface/lerobot/<repo_id>), and you should use the same repo_id in train_config which you are using with config_name of openpi_franka/src/openpi/training/config.py 
 # batch_size in TrainConfig must be a multiple of x if you have x GPU devices, when run the command below. Note 
 CUDA_VISIBLE_DEVICES=1 uv run scripts/compute_norm_stats.py --config-name pi0_franka_single_cam # config-name(TrainConfig) has corresponding repo_id
+
+CUDA_VISIBLE_DEVICES=1 uv run scripts/compute_norm_stats.py --config-name pi0_franka # config-name(TrainConfig) has corresponding repo_id
 
 CUDA_VISIBLE_DEVICES=1 uv run scripts/compute_norm_stats.py --config-name pi0_fast_franka
 ```
@@ -81,10 +86,13 @@ CUDA_VISIBLE_DEVICES=5 uv run scripts/serve_policy.py policy:checkpoint --policy
 
 ```bash
 # pi0
-CUDA_VISIBLE_DEVICES=2 uv run examples/franka/test/test_inference_check.py --checkpoint_dir "checkpoints/pi0_franka_single_cam/pi0_new_franka_single_cam/29999" --config_name "pi0_franka_single_cam" 
+CUDA_VISIBLE_DEVICES=7 uv run examples/franka/test/test_inference_check.py --checkpoint_dir "checkpoints/pi0_franka_single_cam/pi0_gs_franka_single_cam/29999" --config_name "pi0_franka_single_cam" 
+
+
+CUDA_VISIBLE_DEVICES=0 uv run examples/franka/test/test_inference_check.py --checkpoint_dir "checkpoints/pi0_franka/official_action_no_r6/20000" --config_name "pi0_franka" 
 
 # pi0 fast
-CUDA_VISIBLE_DEVICES=1 uv run examples/franka/test/test_inference_check.py --checkpoint_dir "checkpoints/pi0_fcheckpoints/pi0_franka_single_cam/pi0_new_franka_single_cam/20000ast_franka/fast-official_action_no_r6/15000" --config_name "pi0_fast_franka" 
+CUDA_VISIBLE_DEVICES=1 uv run examples/franka/test/test_inference_check.py --checkpoint_dir "checkpoints/pi0_fast_franka/fast-official_action_no_r6/15000" --config_name "pi0_fast_franka" 
 ```
 
 

@@ -25,8 +25,6 @@ CUDA_VISIBLE_DEVICES=6 uv run examples/franka/deploy/server_policy.py --host "0.
 # pi0
 CUDA_VISIBLE_DEVICES=3 uv run examples/franka/deploy/server_policy.py --host "0.0.0.0" --port 9876 --default_prompt "test" policy:checkpoint --policy.config="pi0_franka" --policy.dir="/home/weibingwen/Documents/TRUE-Bench/third_party/openpi/checkpoints/pi0_franka/official_action_no_r6/29999"
 
-CUDA_VISIBLE_DEVICES=3 uv run examples/franka/deploy/server_policy.py --host "0.0.0.0" --port 9876 --default_prompt "pick up the object" policy:checkpoint --policy.config="pi0_franka_single_cam" --policy.dir="checkpoints/pi0_franka_single_cam/pi0_new_franka_single_cam/29999"
-
 # 0.0.0.0 receive all ip data, 9876 is a port for connection.
 ```
 
