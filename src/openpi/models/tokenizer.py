@@ -1,5 +1,6 @@
 import logging
 import os
+import string
 
 import jax
 import numpy as np
@@ -46,6 +47,103 @@ class PaligemmaTokenizer:
             mask = [True] * self._max_len
 
         return np.asarray(tokens), np.asarray(mask)
+
+    def tokenize_high_level_prompt(self, high_prompt: str) -> tuple[np.ndarray, np.ndarray]:
+        """Tokenize high-level prompt for subtask generation (Pi05).
+        
+        Args:
+            high_prompt: High-level task description
+            
+        Returns:
+            Tuple of (tokens, mask)
+        """
+        cleaned_high_text = high_prompt.lower().strip().replace("_", " ").replace("\n", " ")
+        if cleaned_high_text and cleaned_high_text[-1] in string.punctuation:
+            cleaned_high_text = cleaned_high_text[:-1]
+        cleaned_high_text += '.'  # Add custom symbol
+        sub_prompt_1 = f"Task: {cleaned_high_text} Subtask: "
+        tokens_1 = self._tokenizer.encode(sub_prompt_1, add_bos=True)
+        if len(tokens_1) < self._max_len:
+            padding = [False] * (self._max_len - len(tokens_1))
+            tokens = tokens_1 + padding
+            mask = [True] * len(tokens_1) + padding
+        else:
+            if len(tokens_1) > self._max_len:
+                logging.warning(
+                    f"Token length ({len(tokens_1)}) exceeds max length ({self._max_len}), truncating. "
+                    "Consider increasing the `max_token_len` in your model config if this happens frequently."
+                )
+            tokens = tokens_1[: self._max_len]
+            mask = [True] * self._max_len
+        return np.asarray(tokens), np.asarray(mask)
+
+    def tokenize_high_low_prompt(
+        self, high_prompt: str, low_prompt: str
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Tokenize high-level and low-level prompts for subtask generation (Pi05).
+        
+        Args:
+            high_prompt: High-level task description
+            low_prompt: Low-level subtask description
+            
+        Returns:
+            Tuple of (tokens, mask, ar_mask, loss_mask)
+        """
+        cleaned_high_text = high_prompt.lower().strip().replace("_", " ").replace("\n", " ")
+        cleaned_low_text = low_prompt.lower().strip().replace("_", " ").replace("\n", " ")
+
+        # Remove the last punctuation character if present and add custom symbol
+        if cleaned_high_text and cleaned_high_text[-1] in string.punctuation:
+            cleaned_high_text = cleaned_high_text[:-1]
+        cleaned_high_text += '.'  # Add custom symbol
+        sub_prompt_1 = f"Task: {cleaned_high_text} Subtask: "
+        tokens_1 = self._tokenizer.encode(sub_prompt_1, add_bos=True)
+        ar_mask = [1] * len(tokens_1)
+        loss_mask = [False] * len(tokens_1)
+
+        # Remove the last punctuation character if present and add custom symbol
+        if cleaned_low_text and cleaned_low_text[-1] in string.punctuation:
+            cleaned_low_text = cleaned_low_text[:-1]
+        cleaned_low_text += '.'  # Add custom symbol
+        sub_prompt_2 = f"{cleaned_low_text};\nAction: "  # Note: State is not included here
+        tokens_2 = self._tokenizer.encode(sub_prompt_2, add_eos=True)
+        ar_mask += [1] * len(tokens_2)
+        loss_mask += [True] * len(tokens_2)
+
+        tokens = tokens_1 + tokens_2
+
+        tokens_len = len(tokens)
+        if tokens_len < self._max_len:
+            padding = [False] * (self._max_len - tokens_len)
+            mask = [True] * tokens_len + padding
+            tokens = tokens + padding
+            ar_mask = ar_mask + padding
+            loss_mask = loss_mask + padding
+        else:
+            if len(tokens) > self._max_len:
+                logging.warning(
+                    f"Token length ({len(tokens)}) exceeds max length ({self._max_len}), truncating. "
+                    "Consider increasing the `max_token_len` in your model config if this happens frequently."
+                )
+            tokens = tokens[: self._max_len]
+            mask = [True] * self._max_len
+            ar_mask = ar_mask[: self._max_len]
+            loss_mask = loss_mask[: self._max_len]
+
+        return np.asarray(tokens), np.asarray(mask), np.asarray(ar_mask), np.asarray(loss_mask)
+
+    def detokenize(self, tokens: np.ndarray) -> str:
+        """Decode tokens back to text, removing padding tokens.
+        
+        Args:
+            tokens: Token array to decode
+            
+        Returns:
+            Decoded text string
+        """
+        # Remove padding tokens (tokens with value 0)
+        non_padding_tokens = tokens[tokens != 0]
+        return self._tokenizer.decode(non_padding_tokens.tolist())
 
 
 class FASTTokenizer:

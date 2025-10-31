@@ -15,6 +15,7 @@ from typing_extensions import override
 
 from openpi import transforms as _transforms
 from openpi.models import model as _model
+from openpi.models import tokenizer as _tokenizer
 from openpi.shared import array_typing as at
 from openpi.shared import nnx_utils
 
@@ -89,11 +90,39 @@ class Policy(BasePolicy):
 
         observation = _model.Observation.from_dict(inputs)
         start_time = time.monotonic()
+        
+        # Call sample_actions - may return actions or (actions, output_tokens) for subtask generation
+        action_output = self._sample_actions(sample_rng_or_pytorch_device, observation, **sample_kwargs)
+        
+        # Handle both regular output and subtask generation output
+        if isinstance(action_output, tuple):
+            # Subtask generation model returns (actions, output_tokens)
+            actions, output_tokens = action_output
+            
+            # Detokenize and print the generated subtask
+            try:
+                tokenizer = _tokenizer.PaligemmaTokenizer(max_len=50)
+                if self._is_pytorch_model:
+                    # Convert PyTorch tensor to numpy
+                    output_tokens_np = output_tokens.detach().cpu().numpy()
+                else:
+                    # JAX array
+                    output_tokens_np = np.asarray(output_tokens, dtype=int)
+                
+                generated_subtask = tokenizer.detokenize(output_tokens_np[0])
+                logging.info(f"Generated Subtask: {generated_subtask}")
+            except Exception as e:
+                logging.warning(f"Failed to detokenize output tokens: {e}")
+        else:
+            # Regular model returns just actions
+            actions = action_output
+        
         outputs = {
             "state": inputs["state"],
-            "actions": self._sample_actions(sample_rng_or_pytorch_device, observation, **sample_kwargs),
+            "actions": actions,
         }
         model_time = time.monotonic() - start_time
+        
         if self._is_pytorch_model:
             outputs = jax.tree.map(lambda x: np.asarray(x[0, ...].detach().cpu()), outputs)
         else:

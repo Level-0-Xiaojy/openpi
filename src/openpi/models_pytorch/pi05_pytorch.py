@@ -35,8 +35,9 @@ from torch import nn
 import torch.nn.functional as F
 
 import openpi.models.gemma as _gemma
-from openpi.models_pytorch.gemma05_pytorch import PaliGemmaWithExpertModel
+from openpi.models_pytorch.gemma_pytorch import PaliGemmaWithExpertModel
 import openpi.models_pytorch.preprocessing_pytorch as _preprocessing
+from openpi.models_pytorch.static_kv_cache import StaticKVCache
 
 
 def get_safe_dtype(target_dtype, device_type):
@@ -80,31 +81,55 @@ def sample_beta(alpha, beta, bsize, device):
 def left_to_right_align(x, input_mask, attn_mask):
     """Converts input from left-align to right-aligned.
     
+    Each example in the batch can have a different sequence length and will
+    be rolled by a different amount to achieve right-alignment.
+    
     Args:
         x: [batch, seq, dim] embeddings
-        input_mask: [batch, seq] bool mask
+        input_mask: [batch, seq] bool mask - True for valid tokens
         attn_mask: [batch, seq, seq] attention mask
+    
+    Returns:
+        Tuple of (x_rolled, mask_rolled, attn_rolled) with same shapes as input
     """
-    batch_size = x.shape[0]
-    results_x = []
-    results_input_mask = []
-    results_attn_mask = []
+    batch_size, seq_len = input_mask.shape
+    device = x.device
     
-    for b in range(batch_size):
-        # Find the actual sequence length (excluding padding)
-        seqlen = torch.max(input_mask[b].float() * torch.arange(input_mask[b].shape[0], device=x.device)) + 1
-        seqlen = seqlen.long()
-        
-        # Roll to right-align
-        x_rolled = torch.roll(x[b], -seqlen.item(), dims=0)
-        mask_rolled = torch.roll(input_mask[b], -seqlen.item(), dims=0)
-        attn_rolled = torch.roll(attn_mask[b], (-seqlen.item(), -seqlen.item()), dims=(0, 1))
-        
-        results_x.append(x_rolled)
-        results_input_mask.append(mask_rolled)
-        results_attn_mask.append(attn_rolled)
+    # Compute sequence length for each example in the batch [batch]
+    arange = torch.arange(seq_len, device=device).unsqueeze(0)  # [1, seq]
+    seqlens = torch.max(input_mask.float() * arange, dim=1)[0] + 1  # [batch]
+    seqlens = seqlens.long()
     
-    return torch.stack(results_x), torch.stack(results_input_mask), torch.stack(results_attn_mask)
+    # Create base sequence indices [1, seq]
+    seq_indices = torch.arange(seq_len, device=device).unsqueeze(0)  # [1, seq]
+    
+    # Compute rolled indices for each example
+    # torch.roll(x, -k) maps new[i] = old[(i + k) % len]
+    # So we need: (current_position + shift_amount) % seq_len
+    rolled_seq_indices = (seq_indices + seqlens.unsqueeze(1)) % seq_len  # [batch, seq]
+    
+    # Create batch indices for advanced indexing
+    batch_indices = torch.arange(batch_size, device=device).unsqueeze(1)  # [batch, 1]
+    
+    # Apply rolling to x using advanced indexing
+    x_rolled = x[batch_indices, rolled_seq_indices]  # [batch, seq, dim]
+    
+    # Apply rolling to input_mask
+    mask_rolled = input_mask[batch_indices, rolled_seq_indices]  # [batch, seq]
+    
+    # Apply rolling to attn_mask (roll both row and column dimensions)
+    # First expand indices for 2D indexing
+    row_indices = rolled_seq_indices.unsqueeze(2)  # [batch, seq, 1]
+    col_indices = rolled_seq_indices.unsqueeze(1)  # [batch, 1, seq]
+    batch_indices_3d = batch_indices.unsqueeze(2)  # [batch, 1, 1]
+    
+    attn_rolled = attn_mask[
+        batch_indices_3d,  # [batch, 1, 1]
+        row_indices,       # [batch, seq, 1]
+        col_indices        # [batch, 1, seq]
+    ]  # [batch, seq, seq]
+    
+    return x_rolled, mask_rolled, attn_rolled
 
 
 def make_att_2d_masks(pad_masks, att_masks):
@@ -431,7 +456,7 @@ class PI05Pytorch(nn.Module):
     def sample_low_level_task(
         self, images, img_masks, lang_tokens, lang_masks, max_decoding_steps=20, temperature=0.0, eos_token=1
     ):
-        """Sample low-level task autoregressively."""
+        """Sample low-level task autoregressively with pre-allocated KV cache."""
         batch_size = lang_tokens.shape[0]
         device = lang_tokens.device
 
@@ -447,17 +472,31 @@ class PI05Pytorch(nn.Module):
         prefill_len = torch.sum(prefix_pad_masks, dim=-1)
         prefix_start = prefill_size - prefill_len
 
-        # Pad attention mask for future tokens
+        # Pad attention mask for future tokens (matching JAX behavior)
         prefix_att_2d_masks = F.pad(prefix_att_2d_masks, (0, max_decoding_steps, 0, 0))
         prefix_position_ids = torch.cumsum(prefix_pad_masks, dim=1) - 1
+
+        # Initialize pre-allocated static KV cache (matching JAX's _init_cache behavior)
+        # max_cache_len = prefill_size + max_decoding_steps (same as attn_mask.shape[-1] in JAX)
+        paligemma_config = self.paligemma_with_expert.paligemma.config.text_config
+        static_cache = StaticKVCache(
+            max_batch_size=batch_size,
+            max_cache_len=prefill_size + max_decoding_steps,
+            num_layers=paligemma_config.num_hidden_layers,
+            num_key_value_heads=paligemma_config.num_key_value_heads,
+            head_dim=paligemma_config.head_dim,
+            dtype=prefix_embs.dtype,
+            device=device,
+        )
 
         prefix_att_2d_masks_4d = self._prepare_attention_masks_4d(prefix_att_2d_masks)
         self.paligemma_with_expert.paligemma.language_model.config._attn_implementation = "eager"
 
+        # Prefill: initialize cache with all prefix tokens
         (prefix_out, _), past_key_values = self.paligemma_with_expert.forward(
             attention_mask=prefix_att_2d_masks_4d,
             position_ids=prefix_position_ids,
-            past_key_values=None,
+            past_key_values=static_cache,  # Use pre-allocated static cache
             inputs_embeds=[prefix_embs, None],
             use_cache=True,
             adarms_cond=[None, None],
@@ -553,9 +592,17 @@ class PI05Pytorch(nn.Module):
     def denoise_step(self, prefix_pad_masks, past_key_values, x_t, timestep):
         """Apply one denoising step.
         
-        Note: The KV cache from subtask generation is reused but NOT updated,
-        since suffix tokens (action_horizon > 1) are processed together.
-        The transformers library automatically concatenates new K/V with cached K/V.
+        Matches JAX behavior from gemma.py Attention.__call__:
+        When k.shape[1] > 1 (action_horizon > 1):
+            k = jnp.concatenate([k_cache, k], axis=1)  # Concatenate WITHOUT updating cache
+            v = jnp.concatenate([v_cache, v], axis=1)
+        
+        PyTorch equivalent:
+        - use_cache=False triggers concatenation in GemmaAttention.forward:
+            key_states = torch.cat([past_key_value[layer_idx][0], key_states], dim=2)
+            value_states = torch.cat([past_key_value[layer_idx][1], value_states], dim=2)
+        - The StaticKVCache is NOT updated during denoising steps
+        - Multiple denoising steps reuse the same cached prefix K/V from subtask generation
         """
         suffix_embs, suffix_pad_masks, suffix_att_masks, adarms_cond = self.embed_suffix(x_t, timestep)
 
