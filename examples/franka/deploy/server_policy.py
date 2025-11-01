@@ -178,8 +178,9 @@ class Pi0Server:
                 payload = json.loads(payload["encoded"])
 
             # Parse payload components
-            images, instruction, joint_state, gripper_width, ee_pose_T = (payload["images"], payload["instruction"], 
-                                                              payload["joints"], payload["gripper_width"], payload["ee_pose_T"])
+            images, instruction, joint_state, gripper_width, ee_pose_T = (np.array(payload["images"], dtype=np.uint8), payload["instruction"], 
+                                                              np.array(payload["joints"]), np.array(payload["gripper_width"]), 
+                                                              np.array(payload["ee_pose_T"]))
             pos, euler = ee_pose_T[:3, 3], np.array(mat2euler(ee_pose_T[:3, :3], 'sxyz'))
 
             instruction = "Grasp the chili and place it into the bowl."
