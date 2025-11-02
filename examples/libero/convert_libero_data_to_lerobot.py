@@ -85,12 +85,10 @@ def main(data_dir: str, *, push_to_hub: bool = False):
                         "wrist_image": step["observation"]["wrist_image"],
                         "state": step["observation"]["state"],
                         "actions": step["action"],
+                        "task": step["language_instruction"].decode(),
                     }
                 )
-            dataset.save_episode(task=step["language_instruction"].decode())
-
-    # Consolidate the dataset, skip computing stats since we will do that later
-    dataset.consolidate(run_compute_stats=False)
+            dataset.save_episode()
 
     # Optionally push to the Hugging Face Hub
     if push_to_hub:
