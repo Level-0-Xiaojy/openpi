@@ -1220,7 +1220,230 @@ _CONFIGS = [
         # Turn off EMA for LoRA finetuning.
         ema_decay=None,
     ),
-    
+    TrainConfig(
+        name="pi0_pick_to_plate_real",
+        model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora",  # use lora
+                            action_expert_variant="gemma_300m_lora", # use lora
+                            action_dim=32, # finetune should match pi0_base(pretrain using 32)
+                            action_horizon=16,
+                            ),
+        data=LeRobotFrankaSingleCamEEDataConfig(
+            repo_id = "slzhta/pick_to_plate_real",
+            # repo_id="pancake-w/new_franka_pick_place", # created in convert_franka_data_xxxx
+            default_prompt="defalut prompt", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
+            raw_action_is_delta=True, # True for delta action, False for abs_action
+            action_train_with_rotation_6d=True,
+            base_config=DataConfig(prompt_from_task=True,), # we need language instruction
+            # assets=AssetsConfig(
+            #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
+            #     asset_id="droid",
+            # ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=100_000,
+        batch_size=64, # If you have x devices, use a batch size that is a multiple of x. batchsize * 0.5625 GB, model need 17GB
+        # in get filter, only variant name is used, other params are not used.
+        freeze_filter=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", 
+                                    action_expert_variant="gemma_300m_lora",
+                                    ).get_freeze_filter(),
+        exp_name="local_dataset_finetune_LoRA",
+        log_interval=100,
+        save_interval=5000,
+        # Turn off EMA for LoRA finetuning.
+        ema_decay=None,
+    ),
+    TrainConfig(
+        name="pi0_pick_to_plate_sim_real",
+        model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora",  # use lora
+                            action_expert_variant="gemma_300m_lora", # use lora
+                            action_dim=32, # finetune should match pi0_base(pretrain using 32)
+                            action_horizon=16,
+                            ),
+        data=LeRobotFrankaSingleCamEEDataConfig(
+            repo_id = "slzhta/pick_to_plate_sim_real",
+            # repo_id="pancake-w/new_franka_pick_place", # created in convert_franka_data_xxxx
+            default_prompt="defalut prompt", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
+            raw_action_is_delta=True, # True for delta action, False for abs_action
+            action_train_with_rotation_6d=True,
+            base_config=DataConfig(prompt_from_task=True,), # we need language instruction
+            # assets=AssetsConfig(
+            #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
+            #     asset_id="droid",
+            # ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=100_000,
+        batch_size=64, # If you have x devices, use a batch size that is a multiple of x. batchsize * 0.5625 GB, model need 17GB
+        # in get filter, only variant name is used, other params are not used.
+        freeze_filter=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", 
+                                    action_expert_variant="gemma_300m_lora",
+                                    ).get_freeze_filter(),
+        exp_name="local_dataset_finetune_LoRA",
+        log_interval=100,
+        save_interval=5000,
+        # Turn off EMA for LoRA finetuning.
+        ema_decay=None,
+    ),
+    TrainConfig(
+        name="pi0_open_drawer_real",
+        model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora",  # use lora
+                            action_expert_variant="gemma_300m_lora", # use lora
+                            action_dim=32, # finetune should match pi0_base(pretrain using 32)
+                            action_horizon=16,
+                            ),
+        data=LeRobotFrankaSingleCamEEDataConfig(
+            repo_id = "slzhta/open_drawer_real",
+            # repo_id="pancake-w/new_franka_pick_place", # created in convert_franka_data_xxxx
+            default_prompt="defalut prompt", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
+            raw_action_is_delta=True, # True for delta action, False for abs_action
+            action_train_with_rotation_6d=True,
+            base_config=DataConfig(prompt_from_task=True,), # we need language instruction
+            # assets=AssetsConfig(
+            #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
+            #     asset_id="droid",
+            # ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=100_000,
+        batch_size=64, # If you have x devices, use a batch size that is a multiple of x. batchsize * 0.5625 GB, model need 17GB
+        # in get filter, only variant name is used, other params are not used.
+        freeze_filter=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", 
+                                    action_expert_variant="gemma_300m_lora",
+                                    ).get_freeze_filter(),
+        exp_name="local_dataset_finetune_LoRA",
+        log_interval=100,
+        save_interval=5000,
+        # Turn off EMA for LoRA finetuning.
+        ema_decay=None,
+    ),
+    TrainConfig(
+        name="pi0_open_drawer_sim_real",
+        model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora",  # use lora
+                            action_expert_variant="gemma_300m_lora", # use lora
+                            action_dim=32, # finetune should match pi0_base(pretrain using 32)
+                            action_horizon=16,
+                            ),
+        data=LeRobotFrankaSingleCamEEDataConfig(
+            repo_id = "slzhta/open_drawer_sim_real",
+            # repo_id="pancake-w/new_franka_pick_place", # created in convert_franka_data_xxxx
+            default_prompt="defalut prompt", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
+            raw_action_is_delta=True, # True for delta action, False for abs_action
+            action_train_with_rotation_6d=True,
+            base_config=DataConfig(prompt_from_task=True,), # we need language instruction
+            # assets=AssetsConfig(
+            #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
+            #     asset_id="droid",
+            # ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=100_000,
+        batch_size=64, # If you have x devices, use a batch size that is a multiple of x. batchsize * 0.5625 GB, model need 17GB
+        # in get filter, only variant name is used, other params are not used.
+        freeze_filter=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", 
+                                    action_expert_variant="gemma_300m_lora",
+                                    ).get_freeze_filter(),
+        exp_name="local_dataset_finetune_LoRA",
+        log_interval=100,
+        save_interval=5000,
+        # Turn off EMA for LoRA finetuning.
+        ema_decay=None,
+    ),
+    TrainConfig(
+        name="pi0_stack_blocks_real",
+        model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora",  # use lora
+                            action_expert_variant="gemma_300m_lora", # use lora
+                            action_dim=32, # finetune should match pi0_base(pretrain using 32)
+                            action_horizon=16,
+                            ),
+        data=LeRobotFrankaSingleCamEEDataConfig(
+            repo_id = "slzhta/stack_blocks_real",
+            # repo_id="pancake-w/new_franka_pick_place", # created in convert_franka_data_xxxx
+            default_prompt="defalut prompt", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
+            raw_action_is_delta=True, # True for delta action, False for abs_action
+            action_train_with_rotation_6d=True,
+            base_config=DataConfig(prompt_from_task=True,), # we need language instruction
+            # assets=AssetsConfig(
+            #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
+            #     asset_id="droid",
+            # ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=100_000,
+        batch_size=64, # If you have x devices, use a batch size that is a multiple of x. batchsize * 0.5625 GB, model need 17GB
+        # in get filter, only variant name is used, other params are not used.
+        freeze_filter=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", 
+                                    action_expert_variant="gemma_300m_lora",
+                                    ).get_freeze_filter(),
+        exp_name="local_dataset_finetune_LoRA",
+        log_interval=100,
+        save_interval=5000,
+        # Turn off EMA for LoRA finetuning.
+        ema_decay=None,
+    ),
+    TrainConfig(
+        name="pi0_stack_blocks_sim_real",
+        model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora",  # use lora
+                            action_expert_variant="gemma_300m_lora", # use lora
+                            action_dim=32, # finetune should match pi0_base(pretrain using 32)
+                            action_horizon=16,
+                            ),
+        data=LeRobotFrankaSingleCamEEDataConfig(
+            repo_id = "slzhta/stack_blocks_sim_real",
+            # repo_id="pancake-w/new_franka_pick_place", # created in convert_franka_data_xxxx
+            default_prompt="defalut prompt", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
+            raw_action_is_delta=True, # True for delta action, False for abs_action
+            action_train_with_rotation_6d=True,
+            base_config=DataConfig(prompt_from_task=True,), # we need language instruction
+            # assets=AssetsConfig(
+            #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
+            #     asset_id="droid",
+            # ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=100_000,
+        batch_size=64, # If you have x devices, use a batch size that is a multiple of x. batchsize * 0.5625 GB, model need 17GB
+        # in get filter, only variant name is used, other params are not used.
+        freeze_filter=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", 
+                                    action_expert_variant="gemma_300m_lora",
+                                    ).get_freeze_filter(),
+        exp_name="local_dataset_finetune_LoRA",
+        log_interval=100,
+        save_interval=5000,
+        # Turn off EMA for LoRA finetuning.
+        ema_decay=None,
+    ),
+    TrainConfig(
+        name="pi0_pick_to_plate_sim",
+        model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora",  # use lora
+                            action_expert_variant="gemma_300m_lora", # use lora
+                            action_dim=32, # finetune should match pi0_base(pretrain using 32)
+                            action_horizon=16,
+                            ),
+        data=LeRobotFrankaSingleCamEEDataConfig(
+            repo_id = "slzhta/pick_to_plate_sim",
+            # repo_id="pancake-w/new_franka_pick_place", # created in convert_franka_data_xxxx
+            default_prompt="defalut prompt", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
+            raw_action_is_delta=True, # True for delta action, False for abs_action
+            action_train_with_rotation_6d=True,
+            base_config=DataConfig(prompt_from_task=True,), # we need language instruction
+            # assets=AssetsConfig(
+            #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
+            #     asset_id="droid",
+            # ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=100_000,
+        batch_size=64, # If you have x devices, use a batch size that is a multiple of x. batchsize * 0.5625 GB, model need 17GB
+        # in get filter, only variant name is used, other params are not used.
+        freeze_filter=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", 
+                                    action_expert_variant="gemma_300m_lora",
+                                    ).get_freeze_filter(),
+        exp_name="local_dataset_finetune_LoRA",
+        log_interval=100,
+        save_interval=5000,
+        # Turn off EMA for LoRA finetuning.
+        ema_decay=None,
+    ),
     TrainConfig(
         name="debug_pi05",
         model=pi0_config.Pi0Config(pi05=True, paligemma_variant="dummy", action_expert_variant="dummy"),
