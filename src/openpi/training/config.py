@@ -517,7 +517,7 @@ class LeRobotFrankaSingleCamEEDataConfig(DataConfigFactory):
 
         # We return all data transforms for training and inference. No need to change anything here.
         return dataclasses.replace(
-            self.create_base_config(assets_dirs),
+            self.create_base_config(assets_dirs, model_config),
             repack_transforms=repack_transform,
             data_transforms=data_transforms,
             model_transforms=model_transforms,
@@ -1240,6 +1240,7 @@ _CONFIGS = [
             # ),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        pytorch_weight_path="/home/shiliangzhi/work-space/test/openpi/converted_checkpoints/pi0_based",
         num_train_steps=100_000,
         batch_size=64, # If you have x devices, use a batch size that is a multiple of x. batchsize * 0.5625 GB, model need 17GB
         # in get filter, only variant name is used, other params are not used.
@@ -1272,6 +1273,7 @@ _CONFIGS = [
             # ),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        pytorch_weight_path="/home/shiliangzhi/work-space/test/openpi/converted_checkpoints/pi0_based",
         num_train_steps=100_000,
         batch_size=64, # If you have x devices, use a batch size that is a multiple of x. batchsize * 0.5625 GB, model need 17GB
         # in get filter, only variant name is used, other params are not used.
@@ -1304,6 +1306,7 @@ _CONFIGS = [
             # ),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        pytorch_weight_path="/home/shiliangzhi/work-space/test/openpi/converted_checkpoints/pi0_based",
         num_train_steps=100_000,
         batch_size=64, # If you have x devices, use a batch size that is a multiple of x. batchsize * 0.5625 GB, model need 17GB
         # in get filter, only variant name is used, other params are not used.
@@ -1336,6 +1339,7 @@ _CONFIGS = [
             # ),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        pytorch_weight_path="/home/shiliangzhi/work-space/test/openpi/converted_checkpoints/pi0_based",
         num_train_steps=100_000,
         batch_size=64, # If you have x devices, use a batch size that is a multiple of x. batchsize * 0.5625 GB, model need 17GB
         # in get filter, only variant name is used, other params are not used.
@@ -1368,6 +1372,7 @@ _CONFIGS = [
             # ),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        pytorch_weight_path="/home/shiliangzhi/work-space/test/openpi/converted_checkpoints/pi0_based",
         num_train_steps=100_000,
         batch_size=64, # If you have x devices, use a batch size that is a multiple of x. batchsize * 0.5625 GB, model need 17GB
         # in get filter, only variant name is used, other params are not used.
@@ -1400,6 +1405,7 @@ _CONFIGS = [
             # ),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        pytorch_weight_path="/home/shiliangzhi/work-space/test/openpi/converted_checkpoints/pi0_based",
         num_train_steps=100_000,
         batch_size=64, # If you have x devices, use a batch size that is a multiple of x. batchsize * 0.5625 GB, model need 17GB
         # in get filter, only variant name is used, other params are not used.
@@ -1432,6 +1438,7 @@ _CONFIGS = [
             # ),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        pytorch_weight_path="/home/shiliangzhi/work-space/test/openpi/converted_checkpoints/pi0_based",
         num_train_steps=100_000,
         batch_size=64, # If you have x devices, use a batch size that is a multiple of x. batchsize * 0.5625 GB, model need 17GB
         # in get filter, only variant name is used, other params are not used.

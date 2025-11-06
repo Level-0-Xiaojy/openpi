@@ -151,7 +151,7 @@ class FrankaEEOutputs(transforms.DataTransformFn):
             act_xyz = data["actions"][:, :3]
             act_rotation_6d = data["actions"][:, 3:9]
             act_gripper = data["actions"][:, 9:10] # [gripper]
-            act_euler = pt.matrix_to_euler_angles(pt.rotation_6d_to_matrix(torch.from_numpy(act_rotation_6d)),"XYZ").cpu().numpy()
+            act_euler = pt.matrix_to_euler_angles(pt.rotation_6d_to_matrix(act_rotation_6d),"XYZ").cpu().numpy()
             actions = np.concatenate([act_xyz, act_euler, act_gripper], axis=-1)
             return {"actions": actions} # use abs actions [x,y,z,rx,ry,rz,gripper] for Franka
         else:
