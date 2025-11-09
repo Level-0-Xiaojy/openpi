@@ -1233,7 +1233,7 @@ _CONFIGS = [
             default_prompt="defalut prompt", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
             raw_action_is_delta=True, # True for delta action, False for abs_action
             action_train_with_rotation_6d=True,
-            base_config=DataConfig(prompt_from_task=True,), # we need language instruction
+            base_config=DataConfig(prompt_from_task=True,use_quantile_norm=True,), # we need language instruction
             # assets=AssetsConfig(
             #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
             #     asset_id="droid",
@@ -1266,7 +1266,7 @@ _CONFIGS = [
             default_prompt="defalut prompt", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
             raw_action_is_delta=True, # True for delta action, False for abs_action
             action_train_with_rotation_6d=True,
-            base_config=DataConfig(prompt_from_task=True,), # we need language instruction
+            base_config=DataConfig(prompt_from_task=True,use_quantile_norm=True,), # we need language instruction
             # assets=AssetsConfig(
             #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
             #     asset_id="droid",
@@ -1299,7 +1299,7 @@ _CONFIGS = [
             default_prompt="defalut prompt", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
             raw_action_is_delta=True, # True for delta action, False for abs_action
             action_train_with_rotation_6d=True,
-            base_config=DataConfig(prompt_from_task=True,), # we need language instruction
+            base_config=DataConfig(prompt_from_task=True,use_quantile_norm=True,), # we need language instruction
             # assets=AssetsConfig(
             #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
             #     asset_id="droid",
@@ -1332,7 +1332,7 @@ _CONFIGS = [
             default_prompt="defalut prompt", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
             raw_action_is_delta=True, # True for delta action, False for abs_action
             action_train_with_rotation_6d=True,
-            base_config=DataConfig(prompt_from_task=True,), # we need language instruction
+            base_config=DataConfig(prompt_from_task=True,use_quantile_norm=True,), # we need language instruction
             # assets=AssetsConfig(
             #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
             #     asset_id="droid",
@@ -1365,7 +1365,7 @@ _CONFIGS = [
             default_prompt="defalut prompt", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
             raw_action_is_delta=True, # True for delta action, False for abs_action
             action_train_with_rotation_6d=True,
-            base_config=DataConfig(prompt_from_task=True,), # we need language instruction
+            base_config=DataConfig(prompt_from_task=True,use_quantile_norm=True,), # we need language instruction
             # assets=AssetsConfig(
             #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
             #     asset_id="droid",
@@ -1398,7 +1398,7 @@ _CONFIGS = [
             default_prompt="defalut prompt", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
             raw_action_is_delta=True, # True for delta action, False for abs_action
             action_train_with_rotation_6d=True,
-            base_config=DataConfig(prompt_from_task=True,), # we need language instruction
+            base_config=DataConfig(prompt_from_task=True,use_quantile_norm=True,), # we need language instruction
             # assets=AssetsConfig(
             #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
             #     asset_id="droid",
@@ -1431,7 +1431,7 @@ _CONFIGS = [
             default_prompt="defalut prompt", # if we don't set prompt_from_task=True, then use generate 'prompt' for dataset using default prompt
             raw_action_is_delta=True, # True for delta action, False for abs_action
             action_train_with_rotation_6d=True,
-            base_config=DataConfig(prompt_from_task=True,), # we need language instruction
+            base_config=DataConfig(prompt_from_task=True,use_quantile_norm=True,), # we need language instruction
             # assets=AssetsConfig(
             #     assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
             #     asset_id="droid",
