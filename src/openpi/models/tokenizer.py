@@ -1,6 +1,7 @@
 import logging
 import os
 import string
+from typing import List
 
 import jax
 import numpy as np
@@ -48,6 +49,9 @@ class PaligemmaTokenizer:
 
         return np.asarray(tokens), np.asarray(mask)
 
+    def tokenize_with_reasoning(self, prompt: str, state: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
+        return self.tokenize_high_level_prompt(prompt)
+
     def tokenize_high_level_prompt(self, high_prompt: str) -> tuple[np.ndarray, np.ndarray]:
         """Tokenize high-level prompt for subtask generation (Pi05).
         
@@ -57,11 +61,13 @@ class PaligemmaTokenizer:
         Returns:
             Tuple of (tokens, mask)
         """
+        # TODO: discrete state? \n?
         cleaned_high_text = high_prompt.lower().strip().replace("_", " ").replace("\n", " ")
         if cleaned_high_text and cleaned_high_text[-1] in string.punctuation:
             cleaned_high_text = cleaned_high_text[:-1]
         cleaned_high_text += '.'  # Add custom symbol
         sub_prompt_1 = f"Task: {cleaned_high_text} Subtask: "
+        import pdb; pdb.set_trace()
         tokens_1 = self._tokenizer.encode(sub_prompt_1, add_bos=True)
         if len(tokens_1) < self._max_len:
             padding = [False] * (self._max_len - len(tokens_1))

@@ -21,6 +21,7 @@ import dataclasses
 import logging
 import math
 import pathlib
+from jax import image
 import matplotlib.pyplot as plt
 
 import imageio
@@ -33,13 +34,34 @@ import tyro
 from PIL import Image
 
 KEY_MAPPINGS = {
-    'droid_100': {
-        'image': 'observation/exterior_image_1_left',
-        'wrist_image': 'observation/wrist_image_left',
-        'state': ['observation/joint_position', 'observation/gripper_position'],
-        'action': 'action',
+    'lerobot/droid_100': {
+        'observation/image': 'observation.images.exterior_image_1_left',
+        'observation/wrist_image': 'observation.images.wrist_image_left',
+        'observation/state': ['observation/joint_position', 'observation/gripper_position'],
+        'actions': 'action',
+        'prompt': 'task',
+    },
+    'physical-intelligence/libero': {
+        'observation/image': 'image',
+        'observation/wrist_image': 'wrist_image',
+        'observation/state': 'state',
+        'actions': 'actions',
+        'prompt': 'task',
     }
 }
+
+
+def process_data_to_msg(data, key_mapping):
+    msg = {}
+    import pdb; pdb.set_trace()
+    for key, value in key_mapping.items():
+        if isinstance(value, list):
+            msg[key] = np.concatenate([data[k].numpy() for k in value], axis=1)
+        elif isinstance(data[value], str):
+            msg[key] = data[value]
+        else:
+            msg[key] = data[value].numpy()
+    return msg
 
 
 def create_plot_array(gt_actions, pred_actions, states, figsize=None):
@@ -128,10 +150,10 @@ class Args:
     #################################################################################################################
     # Dataset parameters
     #################################################################################################################
-    repo_id: str = ""
+    repo_id: str = "physical-intelligence/libero"
     action_horizon: int = 50  # Number of actions to predict at each time step
     action_key: str = "actions"  # Key for the action in the dataset
-    episode_id: int = 5  # Episode ID to run
+    episode_id: int = 0  # Episode ID to run
 
     #################################################################################################################
     # Utils
@@ -170,15 +192,11 @@ def main(args: Args) -> None:
     all_timestamps = [data['timestamp'].numpy() for data in dataset]
     for step_idx in tqdm.tqdm(range(episode_length), desc="Running episode"):
         data = dataset[step_idx]
-        msg = {
-            "observation/image": data['observation/exterior_image_1_left'].numpy(),
-            "observation/wrist_image": data['observation/wrist_image_left'].numpy(),
-            "observation/state": data['state'].numpy(),
-            "prompt": "pick up the object",
-        }
+        import pdb; pdb.set_trace()
+        msg = process_data_to_msg(data, KEY_MAPPINGS[args.repo_id])
         gt_action = data[args.action_key].numpy()[0]
         if len(action_buffer) == 0:
-            actions = client.infer(msg)["actions"]
+            actions = client.infer(msg)["action"]
             for i in range(action_buffer.maxlen):
                 action_buffer.append(actions[i])
         action = action_buffer.popleft()

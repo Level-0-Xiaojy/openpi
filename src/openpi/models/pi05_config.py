@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 @dataclasses.dataclass(frozen=True)
-class Pi0Config(_model.BaseModelConfig):
+class Pi05Config(_model.BaseModelConfig):
     dtype: str = "bfloat16"
     paligemma_variant: _gemma.Variant = "gemma_2b"
     action_expert_variant: _gemma.Variant = "gemma_300m"
@@ -28,10 +28,9 @@ class Pi0Config(_model.BaseModelConfig):
     # Pi05 has two differences from Pi0:
     # - the state input is part of the discrete language tokens rather than a continuous input that is part of the suffix
     # - the action expert uses adaRMSNorm to inject the flow matching timestep
-    pi05: bool = False
+    pi05: bool = True
     # This config option is not used directly by the model, but it is read by the ModelTransformFactory.
-    discrete_state_input: bool = None  # type: ignore
-    cot_content: List[str] = None
+    discrete_state_input: bool = True  # type: ignore
 
     def __post_init__(self):
         if self.max_token_len is None:
@@ -42,9 +41,7 @@ class Pi0Config(_model.BaseModelConfig):
     @property
     @override
     def model_type(self) -> _model.ModelType:
-        if self.pi05:
-            return _model.ModelType.PI05
-        return _model.ModelType.PI0
+        return _model.ModelType.PI05_Reasoning
 
     @override
     def create(self, rng: at.KeyArrayLike) -> "Pi0":

@@ -1,7 +1,7 @@
 from collections.abc import Callable, Mapping, Sequence
 import dataclasses
 import re
-from typing import Protocol, TypeAlias, TypeVar, runtime_checkable
+from typing import Protocol, TypeAlias, TypeVar, runtime_checkable, List
 
 import flax.traverse_util as traverse_util
 import jax
@@ -263,6 +263,28 @@ class TokenizePrompt(DataTransformFn):
             prompt = prompt.item()
 
         tokens, token_masks = self.tokenizer.tokenize(prompt, state)
+        return {**data, "tokenized_prompt": tokens, "tokenized_prompt_mask": token_masks}
+
+
+@dataclasses.dataclass(frozen=True)
+class TokenizePromptWithReasoning(DataTransformFn):
+    tokenizer: _tokenizer.PaligemmaTokenizer
+    discrete_state_input: bool = False
+
+    def __call__(self, data: DataDict) -> DataDict:
+        if (prompt := data.pop("prompt", None)) is None:
+            raise ValueError("Prompt is required")
+
+        if self.discrete_state_input:
+            if (state := data.get("state", None)) is None:
+                raise ValueError("State is required.")
+        else:
+            state = None
+
+        if not isinstance(prompt, str):
+            prompt = prompt.item()
+
+        tokens, token_masks = self.tokenizer.tokenize_with_reasoning(prompt, state)
         return {**data, "tokenized_prompt": tokens, "tokenized_prompt_mask": token_masks}
 
 

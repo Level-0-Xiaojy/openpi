@@ -93,7 +93,7 @@ class Policy(BasePolicy):
         
         # Call sample_actions - may return actions or (actions, output_tokens) for subtask generation
         action_output = self._sample_actions(sample_rng_or_pytorch_device, observation, **sample_kwargs)
-        
+
         # Handle both regular output and subtask generation output
         if isinstance(action_output, tuple):
             # Subtask generation model returns (actions, output_tokens)
@@ -110,10 +110,13 @@ class Policy(BasePolicy):
                     output_tokens_np = np.asarray(output_tokens, dtype=int)
                 
                 generated_subtask = tokenizer.detokenize(output_tokens_np[0])
-                logging.info(f"Generated Subtask: {generated_subtask}")
+                # logging.info(f"Generated Subtask: {generated_subtask}")
+                print(f"Generated Subtask: {generated_subtask}")
+                print('======================')
             except Exception as e:
                 logging.warning(f"Failed to detokenize output tokens: {e}")
         else:
+            print("No subtask generation")
             # Regular model returns just actions
             actions = action_output
         

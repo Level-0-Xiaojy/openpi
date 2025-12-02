@@ -185,7 +185,7 @@ class PI05Pytorch(nn.Module):
         self.time_mlp_out = nn.Linear(action_expert_config.width, action_expert_config.width)
 
         torch.set_float32_matmul_precision("high")
-        self.sample_actions = torch.compile(self.sample_actions, mode="max-autotune")
+        # self.sample_actions = torch.compile(self.sample_actions, mode="max-autotune")
 
         # Initialize gradient checkpointing flag
         self.gradient_checkpointing_enabled = False
@@ -382,7 +382,7 @@ class PI05Pytorch(nn.Module):
         prefix_out = prefix_out[:, :-1]
 
         # Decode embeddings to logits
-        logits = self.paligemma_with_expert.paligemma.language_model.lm_head(prefix_out[:, -targets.shape[1]:])
+        logits = self.paligemma_with_expert.paligemma.lm_head(prefix_out[:, -targets.shape[1]:])
         logp = F.log_softmax(logits, dim=-1)
 
         # Compute CE loss on token targets
@@ -460,6 +460,7 @@ class PI05Pytorch(nn.Module):
         batch_size = lang_tokens.shape[0]
         device = lang_tokens.device
 
+        import pdb; pdb.set_trace()
         prefix_embs, prefix_pad_masks, prefix_att_masks = self.embed_prefix(images, img_masks, lang_tokens, lang_masks)
         prefix_att_2d_masks = make_att_2d_masks(prefix_pad_masks, prefix_att_masks)
 
@@ -503,7 +504,7 @@ class PI05Pytorch(nn.Module):
         )
 
         last_token_embedding = prefix_out[:, -1:]
-        last_logits = self.paligemma_with_expert.paligemma.language_model.lm_head(last_token_embedding)
+        last_logits = self.paligemma_with_expert.paligemma.lm_head(last_token_embedding)
         last_logits = F.log_softmax(last_logits, dim=-1)
 
         output_tokens = torch.zeros((batch_size, max_decoding_steps), dtype=torch.long, device=device)
@@ -545,7 +546,7 @@ class PI05Pytorch(nn.Module):
             )
 
             last_token_embedding = prefix_out[:, -1:]
-            last_logits = self.paligemma_with_expert.paligemma.language_model.lm_head(last_token_embedding)
+            last_logits = self.paligemma_with_expert.paligemma.lm_head(last_token_embedding)
             last_logits = F.log_softmax(last_logits, dim=-1)
 
         # Create full masks including generated tokens
@@ -568,7 +569,7 @@ class PI05Pytorch(nn.Module):
             noise = self.sample_noise(actions_shape, device)
 
         images, img_masks, lang_tokens, lang_masks, state, _ = self._preprocess_observation(observation, train=False)
-
+        
         # Generate low-level task
         output_tokens, past_key_values, prefix_pad_masks, prefix_att_masks = self.sample_low_level_task(
             images, img_masks, lang_tokens, lang_masks, max_decoding_steps=20, temperature=0.0, eos_token=1
