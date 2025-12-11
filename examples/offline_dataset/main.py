@@ -47,13 +47,22 @@ KEY_MAPPINGS = {
         'observation/state': 'state',
         'actions': 'actions',
         'prompt': 'task',
-    }
+    },
+    # Franka dataset key mappings (for pi05_franka)
+    # Maps policy input keys to LeRobot dataset keys
+    'local/franka_demo': {
+        'observation/state/tcp_pose': 'observation.state.tcp_pose',
+        'observation/state/gripper_pose': 'observation.state.gripper_pose',
+        'observation/images/front_cam': 'observation.images.front_cam',
+        'observation/images/wrist_cam': 'observation.images.wrist_cam',
+        'actions': 'action',
+        'prompt': 'task',
+    },
 }
 
 
 def process_data_to_msg(data, key_mapping):
     msg = {}
-    import pdb; pdb.set_trace()
     for key, value in key_mapping.items():
         if isinstance(value, list):
             msg[key] = np.concatenate([data[k].numpy() for k in value], axis=1)
@@ -64,7 +73,7 @@ def process_data_to_msg(data, key_mapping):
     return msg
 
 
-def create_plot_array(gt_actions, pred_actions, states, figsize=None):
+def create_plot_array(gt_actions, pred_actions, states=None, figsize=None):
     """
     Create a matplotlib figure as a numpy array showing states and actions.
     
@@ -82,10 +91,16 @@ def create_plot_array(gt_actions, pred_actions, states, figsize=None):
         
     gt_array = np.array(gt_actions)
     pred_array = np.array(pred_actions)
-    state_array = np.array(states)
+    
+    # Handle optional states input
+    if states is not None:
+        state_array = np.array(states)
+        state_dim = state_array.shape[1] if len(state_array.shape) > 1 else 1
+    else:
+        state_array = None
+        state_dim = 0
     
     # Determine the number of subplots needed
-    state_dim = state_array.shape[1] if len(state_array.shape) > 1 else 1
     action_dim = gt_array.shape[1] if len(gt_array.shape) > 1 else 1
     n_subplots = max(state_dim, action_dim)
     
@@ -100,8 +115,8 @@ def create_plot_array(gt_actions, pred_actions, states, figsize=None):
     for i in range(n_subplots):
         ax = axes[i]
         
-        # Plot states if dimension exists
-        if i < state_dim:
+        # Plot states if dimension exists and states are provided
+        if state_array is not None and i < state_dim:
             if len(state_array.shape) > 1:
                 ax.plot(time_steps, state_array[:, i], label=f'state_{i}', alpha=0.7)
             else:
@@ -150,9 +165,9 @@ class Args:
     #################################################################################################################
     # Dataset parameters
     #################################################################################################################
-    repo_id: str = "physical-intelligence/libero"
-    action_horizon: int = 50  # Number of actions to predict at each time step
-    action_key: str = "actions"  # Key for the action in the dataset
+    repo_id: str = "local/franka_demo"
+    action_horizon: int = 10  # Number of actions to predict at each time step (matches pi05_franka action_horizon)
+    action_key: str = "action"  # Key for the action in the dataset (Franka uses 'action' not 'actions')
     episode_id: int = 0  # Episode ID to run
 
     #################################################################################################################
@@ -192,25 +207,26 @@ def main(args: Args) -> None:
     all_timestamps = [data['timestamp'].numpy() for data in dataset]
     for step_idx in tqdm.tqdm(range(episode_length), desc="Running episode"):
         data = dataset[step_idx]
-        import pdb; pdb.set_trace()
         msg = process_data_to_msg(data, KEY_MAPPINGS[args.repo_id])
         gt_action = data[args.action_key].numpy()[0]
         if len(action_buffer) == 0:
-            actions = client.infer(msg)["action"]
+            actions = client.infer(msg)["actions"]
             for i in range(action_buffer.maxlen):
                 action_buffer.append(actions[i])
         action = action_buffer.popleft()
 
         plot_info['gt'].append(gt_action)
         plot_info['pred'].append(action)
-        plot_info['state'].append(data['state'].numpy())
+        # import pdb; pdb.set_trace()
+        # state = np.concatenate([data['observation/state/tcp_pose'].numpy(), data['observation/state/gripper_pose'].numpy()])
+        # plot_info['state'].append(state)
 
-        image = image_tools.convert_to_uint8(data['image'].numpy().transpose(1, 2, 0))
-        wrist_image = image_tools.convert_to_uint8(data['wrist_image'].numpy().transpose(1, 2, 0))
+        image = image_tools.convert_to_uint8(data['observation.images.front_cam'].numpy().transpose(1, 2, 0))
+        wrist_image = image_tools.convert_to_uint8(data['observation.images.wrist_cam'].numpy().transpose(1, 2, 0))
         combined_image = np.concatenate([image, wrist_image], axis=1)
 
         # Create plot array showing states and actions accumulated so far
-        plot_array = create_plot_array(plot_info['gt'], plot_info['pred'], plot_info['state'])
+        plot_array = create_plot_array(plot_info['gt'], plot_info['pred'], None) #plot_info['state'])
         plot_img = Image.fromarray(plot_array)
         # reshape img to make it the same width as combined_image
         plot_img = plot_img.resize((combined_image.shape[1], plot_img.height * combined_image.shape[1] // plot_img.width))
@@ -242,29 +258,30 @@ def main(args: Args) -> None:
     plt.savefig(pathlib.Path(args.video_out_path) / f"episode_{args.episode_id}_actions.png")
     plt.close()
 
-    states = np.array(plot_info['state'])
-    plt.figure(figsize=(8, 3 * states.shape[1]))
-    for i in range(states.shape[1]):
-        plt.subplot(states.shape[1], 1, i+1)
-        plt.plot(states[:, i])
-    plt.xlabel('Time step')
-    plt.ylabel('State value')
-    plt.tight_layout()
-    plt.savefig(pathlib.Path(args.video_out_path) / f"episode_{args.episode_id}_states.png")
-    plt.close()
+    if 'state' in plot_info:
+        states = np.array(plot_info['state'])
+        plt.figure(figsize=(8, 3 * states.shape[1]))
+        for i in range(states.shape[1]):
+            plt.subplot(states.shape[1], 1, i+1)
+            plt.plot(states[:, i])
+        plt.xlabel('Time step')
+        plt.ylabel('State value')
+        plt.tight_layout()
+        plt.savefig(pathlib.Path(args.video_out_path) / f"episode_{args.episode_id}_states.png")
+        plt.close()
 
-    # plot states and pred actions together
-    plt.figure(figsize=(8, 3 * states.shape[1]))
-    for i in range(min(states.shape[1], plot_info['pred'].shape[1])):
-        plt.subplot(min(states.shape[1], plot_info['pred'].shape[1]), 1, i+1)
-        plt.plot(states[:, i], label='state')
-        plt.plot(plot_info['pred'][:, i], label='pred_action')
-        plt.legend()
-    plt.xlabel('Time step')
-    plt.ylabel('Value')
-    plt.tight_layout()
-    plt.savefig(pathlib.Path(args.video_out_path) / f"episode_{args.episode_id}_states_actions.png")
-    plt.close()
+        # plot states and pred actions together
+        plt.figure(figsize=(8, 3 * states.shape[1]))
+        for i in range(min(states.shape[1], plot_info['pred'].shape[1])):
+            plt.subplot(min(states.shape[1], plot_info['pred'].shape[1]), 1, i+1)
+            plt.plot(states[:, i], label='state')
+            plt.plot(plot_info['pred'][:, i], label='pred_action')
+            plt.legend()
+        plt.xlabel('Time step')
+        plt.ylabel('Value')
+        plt.tight_layout()
+        plt.savefig(pathlib.Path(args.video_out_path) / f"episode_{args.episode_id}_states_actions.png")
+        plt.close()
 
     # Save a replay video of the episode
     imageio.mimwrite(

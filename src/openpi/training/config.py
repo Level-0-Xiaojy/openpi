@@ -20,6 +20,7 @@ import openpi.models.pi0_fast as pi0_fast
 import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
+import openpi.policies.franka_policy as franka_policy
 import openpi.policies.libero_policy as libero_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
@@ -468,11 +469,85 @@ class LeRobotDROIDDataConfig(DataConfigFactory):
 
 
 @dataclasses.dataclass(frozen=True)
+class LeRobotFrankaDataConfig(DataConfigFactory):
+    """
+    Data config for custom Franka robot dataset in LeRobot format.
+    
+    This config is designed for Franka data collected with the realRL framework
+    and converted to LeRobot format via process_data.py.
+    
+    Uses 6D rotation representation for both state and action to avoid singularities.
+    
+    Data format expected:
+        - observation.state.tcp_pose: [x, y, z, qx, qy, qz, qw] (7D)
+        - observation.state.gripper_pose: [gripper] (1D)
+        - observation.images.front_cam: RGB image
+        - observation.images.wrist_cam: RGB image
+        - action: [dx, dy, dz, drx, dry, drz, gripper] (7D) - already delta actions
+    
+    After transform:
+        - state: [x, y, z, rot6d(6), gripper] (10D)
+        - action: [dx, dy, dz, delta_rot6d(6), gripper] (10D)
+    """
+    
+    # Default prompt if task descriptions are not available
+    default_prompt: str | None = None
+
+    action_sequence_keys: Sequence[str] = ("action",)
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        # Repack transform: maps LeRobot dataset keys to the format expected by FrankaInputs
+        # This is applied to training data only (not during inference)
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        # Map LeRobot keys to internal keys used by FrankaInputs
+                        "observation/state/tcp_pose": "observation.state.tcp_pose",
+                        "observation/state/gripper_pose": "observation.state.gripper_pose",
+                        "observation/images/front_cam": "observation.images.front_cam",
+                        "observation/images/wrist_cam": "observation.images.wrist_cam",
+                        "actions": "action",
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        )
+        
+        # Data transforms: Applied to both training data and inference inputs
+        # FrankaInputs handles:
+        #   - Converting quaternion state to rot6d
+        #   - Converting euler delta actions to rot6d
+        #   - Setting up image inputs
+        # FrankaOutputs handles:
+        #   - Converting rot6d delta actions back to euler delta
+        data_transforms = _transforms.Group(
+            inputs=[franka_policy.FrankaInputs(model_type=model_config.model_type)],
+            outputs=[franka_policy.FrankaOutputs()],
+        )
+        
+        # Note: We do NOT apply DeltaActions transform because the data already has delta actions
+        # from the process_data.py conversion (scale_action function converts to real units)
+        
+        # Model transforms: Tokenization, resizing, padding
+        model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
+        
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+            action_sequence_keys=("action",),  # Dataset uses 'action' (singular), not 'actions'
+        )
+
+
+@dataclasses.dataclass(frozen=True)
 class TrainConfig:
     # Name of the config. Must be unique. Will be used to reference this config.
     name: tyro.conf.Suppress[str]
     # Project name.
-    project_name: str = "openpi"
+    project_name: str = "vla_lib"
     # Experiment name. Will be used to name the metadata and checkpoint directories.
     exp_name: str = tyro.MISSING
 
@@ -972,6 +1047,82 @@ _CONFIGS = [
         num_train_steps=20_000,
         batch_size=32,
         enable_pi05_reasoning=True,
+    ),
+    #
+    # Fine-tuning Franka configs.
+    # These configs are for fine-tuning on custom Franka robot data collected with realRL.
+    # Uses 6D rotation representation for state and action to avoid singularities.
+    #
+    TrainConfig(
+        name="pi05_franka",
+        # pi0.5 model config
+        # action_dim=32 is the internal model dimension (will be padded)
+        # Our actual action is 10D (3 pos + 6 rot6d + 1 gripper)
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=32,  # Model's internal action dimension
+            action_horizon=10,  # Number of future actions to predict
+        ),
+        data=LeRobotFrankaDataConfig(
+            # Replace with your LeRobot dataset repo_id
+            # For local datasets: "local/your_dataset_name" or full path
+            repo_id="local/franka_demo",
+            base_config=DataConfig(
+                # Load task prompt from the 'task' field in LeRobot dataset
+                prompt_from_task=True,
+            ),
+        ),
+        # Load pi0.5 base model weights
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        # Training hyperparameters
+        batch_size=128,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=5e-5,
+            decay_steps=50_000,
+            decay_lr=5e-6,
+        ),
+        optimizer=_optimizer.AdamW(clip_gradient_norm=1.0),
+        ema_decay=0.999,
+        num_train_steps=50_000,
+        save_interval=5_000,
+        fsdp_devices=4
+    ),
+    TrainConfig(
+        # LoRA fine-tuning version for lower memory requirements (~22GB)
+        name="pi05_franka_lora",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=32,
+            action_horizon=10,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ),
+        data=LeRobotFrankaDataConfig(
+            repo_id="local/franka_demo",
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        batch_size=32,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=5e-5,
+            decay_steps=100_000,
+            decay_lr=5e-5,
+        ),
+        optimizer=_optimizer.AdamW(clip_gradient_norm=1.0),
+        num_train_steps=30_000,
+        save_interval=5_000,
+        # Freeze non-LoRA parameters
+        freeze_filter=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=32,
+            action_horizon=10,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ).get_freeze_filter(),
+        # Disable EMA for LoRA
+        ema_decay=None,
     ),
     #
     # ALOHA Sim configs. This config is used to demonstrate how to train on a simple simulated environment.

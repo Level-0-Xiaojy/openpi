@@ -29,6 +29,7 @@ class EnvMode(enum.Enum):
     ALOHA_SIM = "aloha_sim"
     DROID = "droid"
     LIBERO = "libero"
+    FRANKA = "franka"
 
 
 @dataclasses.dataclass
@@ -64,6 +65,10 @@ DEFAULT_CHECKPOINT: dict[EnvMode, Checkpoint] = {
         config="pi05_libero",
         dir="gs://openpi-assets/checkpoints/pi05_libero",
     ),
+    EnvMode.FRANKA: Checkpoint(
+        config="pi05_franka",
+        dir="checkpoints/pi05_franka/openpi-pi05_franka/10000",
+    ),
 }
 
 
@@ -82,7 +87,17 @@ KEY_MAPPINGS = {
         'observation/state': 'state',
         'actions': 'actions',
         'prompt': 'task',
-    }
+    },
+    # Franka dataset key mappings (for pi05_franka)
+    # Maps policy input keys to LeRobot dataset keys
+    'local/franka_demo': {
+        'observation/state/tcp_pose': 'observation.state.tcp_pose',
+        'observation/state/gripper_pose': 'observation.state.gripper_pose',
+        'observation/images/front_cam': 'observation.images.front_cam',
+        'observation/images/wrist_cam': 'observation.images.wrist_cam',
+        'actions': 'action',
+        'prompt': 'task',
+    },
 }
 
 
@@ -92,7 +107,7 @@ class Args:
     # Policy parameters
     #################################################################################################################
     # Environment to serve the policy for (used when loading default policies).
-    env: EnvMode = EnvMode.LIBERO
+    env: EnvMode = EnvMode.FRANKA
     
     # If provided, will be used in case the "prompt" key is not present in the data.
     default_prompt: str | None = None
@@ -112,9 +127,9 @@ class Args:
     #################################################################################################################
     # Dataset parameters
     #################################################################################################################
-    repo_id: str = "droid/droid_small"
-    action_horizon: int = 50  # Number of actions to predict at each time step
-    action_key: str = "actions"  # Key for the action in the dataset
+    repo_id: str = "local/franka_demo"
+    action_horizon: int = 10  # Number of actions to predict at each time step (matches pi05_franka action_horizon)
+    action_key: str = "action"  # Key for the action in the dataset (Franka uses 'action' not 'actions')
     episode_id: int = 0  # Episode ID to run
 
     #################################################################################################################
