@@ -88,12 +88,21 @@ def create_rlds_dataloader(
     return data_loader, num_batches
 
 
-def main(config_name: str, repo_id: str | None = None, max_frames: int | None = None):
+def main(config_name: str, repo_id: str | None = None, max_frames: int | None = None, overwrite: bool = False):
     config = _config.get_config(config_name)
     data_config = config.data.create(config.assets_dirs, config.model)
 
     if repo_id:
         data_config = dataclasses.replace(data_config, repo_id=repo_id)
+
+    output_path = config.assets_dirs / data_config.repo_id
+    norm_stats_file = output_path / "norm_stats.json"
+    
+    # Check if norm stats already exist
+    if norm_stats_file.exists() and not overwrite:
+        print(f"Norm stats already exist at: {norm_stats_file}")
+        print("Use --overwrite to recompute them.")
+        return
 
     if data_config.rlds_data_dir is not None:
         data_loader, num_batches = create_rlds_dataloader(
@@ -113,7 +122,6 @@ def main(config_name: str, repo_id: str | None = None, max_frames: int | None = 
 
     norm_stats = {key: stats.get_statistics() for key, stats in stats.items()}
 
-    output_path = config.assets_dirs / data_config.repo_id
     print(f"Writing stats to: {output_path}")
     normalize.save(output_path, norm_stats)
 

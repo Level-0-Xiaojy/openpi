@@ -220,6 +220,98 @@ You should run `ssh server -L 9876:localhost:9876` to start the terminal, and th
 `ssh <remote_host_ssh_config> -L <local_port>:<destination_host_ip>:<destination_port>`
 
 
+## Quick Start with Config File (Recommended)
+
+Instead of running multiple commands with many arguments, you can use a single YAML config file for your task:
+
+### 1. Create a config file
+
+Copy the template and modify for your task:
+
+```bash
+cp examples/franka/configs/template.yaml examples/franka/configs/my_task.yaml
+```
+
+Edit `my_task.yaml` with your settings:
+
+**Single GPU Training:**
+```yaml
+task_name: "pi05_sim_sm_10hz_pp"
+instruction: "pick the dice and place it into the green plate"
+
+model:
+  config_name: "pi05_franka"
+  pytorch_weight_path: "checkpoints/torch/pi05_base"
+  discrete_state_input: false  # Optional: continuous state 
+
+data:
+  repo_id: "pi05_sim_sm_10hz_pp"
+
+train:
+  num_train_steps: 30000
+  batch_size: 32
+  multi_gpu: false
+
+gpu:
+  device_id: 0
+```
+
+**Multi-GPU Training (Recommended for faster training):**
+```yaml
+task_name: "pi05_sim_sm_10hz_pp"
+instruction: "pick the dice and place it into the green plate"
+
+model:
+  config_name: "pi05_franka"
+  pytorch_weight_path: "checkpoints/torch/pi05_base"
+  discrete_state_input: false  # Optional: continuous state 
+
+data:
+  repo_id: "pi05_sim_sm_10hz_pp"
+
+train:
+  num_train_steps: 30000
+  batch_size: 32                # Total batch size across all GPUs
+  multi_gpu: true
+  num_gpus: 2
+
+gpu:
+  device_ids: [2, 3]           # List of GPU IDs to use
+
+deploy:
+  port: 12559
+
+gpu:
+  device_id: 0
+```
+
+### 2. Run with single command
+
+```bash
+# Show all commands that will be run
+CONFIG_PATH="examples/franka/configs/pi05_sim_sm_10hz_pp.yaml"
+CONFIG_PATH="examples/franka/configs/pi05_real_sm_10hz_pp.yaml"
+
+uv run examples/franka/run_task.py show --config $CONFIG_PATH
+
+# Compute norm stats only
+uv run examples/franka/run_task.py norm_stats --config $CONFIG_PATH
+
+# Train only  
+uv run examples/franka/run_task.py train --config $CONFIG_PATH
+
+# Run full pipeline (norm_stats + train)
+uv run examples/franka/run_task.py all --config $CONFIG_PATH
+
+# Deploy (after training is complete)
+uv run examples/franka/run_task.py deploy --config $CONFIG_PATH
+
+# Dry run (show command without executing)
+uv run examples/franka/run_task.py train --config $CONFIG_PATH --dry-run
+```
+
+## Manual Commands (Traditional Way)
+
 ```bash
 # 0. Convert data to lerobot dataset 
 # hdf5
@@ -231,20 +323,20 @@ CUDA_VISIBLE_DEVICES=0 uv run examples/franka/convert_franka_hdf5_data_to_lerobo
 # 1. calculate norm stats
 XLA_PYTHON_CLIENT_PREALLOCATE=false CUDA_VISIBLE_DEVICES=0 uv run scripts/compute_norm_stats.py \
     --config-name "pi05_franka" \
-    --repo-id "pi05_sim_sm_10hz_pp"
+    --repo-id "pi05_real_sm_10hz_pp"
 
 # 2. train
-CUDA_VISIBLE_DEVICES=3 uv run scripts/train_pytorch.py pi05_franka \
+CUDA_VISIBLE_DEVICES=0 uv run scripts/train_pytorch.py pi05_franka \
     --pytorch_weight_path "checkpoints/torch/pi05_base" \
-    --exp_name "pi05_sim_sm_10hz_pp" \
-    --data.repo_id "pi05_sim_sm_10hz_pp" \
+    --exp_name "pi05_real_sm_10hz_pp" \
+    --data.repo_id "pi05_real_sm_10hz_pp" \
     --num_train_steps 30_000 \
     --save_interval 5000 \
     --batch_size 32 \
     --overwrite
 
 # 3. deploy
-XLA_PYTHON_CLIENT_PREALLOCATE=false CUDA_VISIBLE_DEVICES=0 uv run examples/franka/deploy/server_policy.py \
+XLA_PYTHON_CLIENT_PREALLOCATE=false CUDA_VISIBLE_DEVICES=0 uv run examples/franka/server_policy.py \
     --host "0.0.0.0" \
     --port 12559 \
     --repo-id "pi05_sim_sm_10hz_pp" \
