@@ -30,34 +30,39 @@ class TrainConfig:
     batch_size: int = 32
     overwrite: bool = True
     exp_name: Optional[str] = None
-    # Multi-GPU training
-    multi_gpu: bool = False
-    num_gpus: int = 1
-    # Norm stats options
-    overwrite_norm_stats: bool = False
+    # GPU settings for training
+    gpu_ids: list[int] = dataclasses.field(default_factory=lambda: [0])  # List of GPU IDs for training
+    xla_preallocate: bool = False
 
 
 @dataclasses.dataclass
 class DeployConfig:
     host: str = "0.0.0.0"
     port: int = 12559
-    checkpoint_dir: Optional[str] = None
+    checkpoint_step: Optional[str] = None  # "latest", specific step, or None for auto-detection
+    # GPU settings for deployment
+    gpu_id: int = 0  # Single GPU for deployment
+    xla_preallocate: bool = False
 
 
 @dataclasses.dataclass
-class GPUConfig:
-    device_id: Optional[int] = None  # For single GPU (backward compatibility)
-    device_ids: Optional[list[int]] = None  # For multi-GPU
+class NormStatsConfig:
+    """Configuration for norm stats computation."""
+    # GPU settings for norm stats
+    gpu_id: int = 0  # Single GPU for norm stats
     xla_preallocate: bool = False
-    
-    def get_device_ids(self) -> list[int]:
-        """Get list of device IDs, handling both single and multi-GPU configs."""
-        if self.device_ids is not None:
-            return self.device_ids
-        elif self.device_id is not None:
-            return [self.device_id]
-        else:
-            return [0]  # Default to GPU 0
+    overwrite: bool = False  # Whether to recompute norm stats if they already exist
+
+
+@dataclasses.dataclass
+class RemoteConfig:
+    """Configuration for syncing files from remote server."""
+    enabled: bool = False
+    host: Optional[str] = None  # e.g., "wq-dev0"
+    remote_path: Optional[str] = None  # e.g., "/mnt/public/bingwen/Projects/openpi"
+    local_path: str = "~/Documents/openpi"
+    # Specific checkpoint step to sync, or "latest" for the latest checkpoint
+    checkpoint_step: Optional[str] = None
 
 
 @dataclasses.dataclass
@@ -69,7 +74,8 @@ class TaskConfig:
     data: DataConfig
     train: TrainConfig = dataclasses.field(default_factory=TrainConfig)
     deploy: DeployConfig = dataclasses.field(default_factory=DeployConfig)
-    gpu: GPUConfig = dataclasses.field(default_factory=GPUConfig)
+    norm_stats: NormStatsConfig = dataclasses.field(default_factory=NormStatsConfig)
+    remote: RemoteConfig = dataclasses.field(default_factory=RemoteConfig)
     
     @classmethod
     def from_yaml(cls, yaml_path: str) -> "TaskConfig":
@@ -84,7 +90,8 @@ class TaskConfig:
             data=DataConfig(**data['data']),
             train=TrainConfig(**data.get('train', {})),
             deploy=DeployConfig(**data.get('deploy', {})),
-            gpu=GPUConfig(**data.get('gpu', {})),
+            norm_stats=NormStatsConfig(**data.get('norm_stats', {})),
+            remote=RemoteConfig(**data.get('remote', {})),
         )
     
     def to_yaml(self, yaml_path: str) -> None:
@@ -96,7 +103,8 @@ class TaskConfig:
             'data': dataclasses.asdict(self.data),
             'train': dataclasses.asdict(self.train),
             'deploy': dataclasses.asdict(self.deploy),
-            'gpu': dataclasses.asdict(self.gpu),
+            'norm_stats': dataclasses.asdict(self.norm_stats),
+            'remote': dataclasses.asdict(self.remote),
         }
         os.makedirs(os.path.dirname(yaml_path), exist_ok=True)
         with open(yaml_path, 'w') as f:
@@ -108,59 +116,85 @@ class TaskConfig:
     
     def get_checkpoint_dir(self) -> str:
         """Get checkpoint directory for deployment."""
-        if self.deploy.checkpoint_dir:
-            return self.deploy.checkpoint_dir
-        # Default: find latest checkpoint
         base_dir = Path(f"checkpoints/{self.model.config_name}/{self.get_exp_name()}")
+        
+        # Check for checkpoint_step in deploy config first, then remote config
+        checkpoint_step = None
+        if hasattr(self.deploy, 'checkpoint_step') and self.deploy.checkpoint_step:
+            checkpoint_step = self.deploy.checkpoint_step
+        elif hasattr(self.remote, 'checkpoint_step') and self.remote.checkpoint_step:
+            checkpoint_step = self.remote.checkpoint_step
+        
+        # If specific checkpoint step is provided
+        if checkpoint_step:
+            if checkpoint_step == "latest":
+                # Find the latest checkpoint
+                if base_dir.exists():
+                    step_dirs = [d for d in base_dir.iterdir() if d.is_dir() and d.name.isdigit()]
+                    if step_dirs:
+                        latest = max(step_dirs, key=lambda x: int(x.name))
+                        return str(latest)
+                # Fallback to training step if no checkpoints found
+                return str(base_dir / str(self.train.num_train_steps))
+            else:
+                # Use specific step
+                return str(base_dir / checkpoint_step)
+        
+        # Default: find latest checkpoint
         if base_dir.exists():
-            # Find the latest step directory
             step_dirs = [d for d in base_dir.iterdir() if d.is_dir() and d.name.isdigit()]
             if step_dirs:
                 latest = max(step_dirs, key=lambda x: int(x.name))
                 return str(latest)
         return str(base_dir / str(self.train.num_train_steps))
     
-    def get_env_prefix(self) -> str:
-        """Get environment variable prefix for GPU settings."""
+    def get_norm_stats_env_prefix(self) -> str:
+        """Get environment variable prefix for norm stats."""
         env_parts = []
-        if not self.gpu.xla_preallocate:
+        if not self.norm_stats.xla_preallocate:
             env_parts.append("XLA_PYTHON_CLIENT_PREALLOCATE=false")
-        
-        device_ids = self.gpu.get_device_ids()
-        env_parts.append(f"CUDA_VISIBLE_DEVICES={','.join(map(str, device_ids))}")
+        env_parts.append(f"CUDA_VISIBLE_DEVICES={self.norm_stats.gpu_id}")
+        return " ".join(env_parts)
+    
+    def get_train_env_prefix(self) -> str:
+        """Get environment variable prefix for training."""
+        env_parts = []
+        if not self.train.xla_preallocate:
+            env_parts.append("XLA_PYTHON_CLIENT_PREALLOCATE=false")
+        env_parts.append(f"CUDA_VISIBLE_DEVICES={','.join(map(str, self.train.gpu_ids))}")
+        return " ".join(env_parts)
+    
+    def get_deploy_env_prefix(self) -> str:
+        """Get environment variable prefix for deployment."""
+        env_parts = []
+        if not self.deploy.xla_preallocate:
+            env_parts.append("XLA_PYTHON_CLIENT_PREALLOCATE=false")
+        env_parts.append(f"CUDA_VISIBLE_DEVICES={self.deploy.gpu_id}")
         return " ".join(env_parts)
     
     def get_norm_stats_cmd(self) -> str:
         """Generate command for computing norm stats."""
-        # Norm stats only needs single GPU
-        device_ids = self.gpu.get_device_ids()
-        env_prefix = []
-        if not self.gpu.xla_preallocate:
-            env_prefix.append("XLA_PYTHON_CLIENT_PREALLOCATE=false")
-        env_prefix.append(f"CUDA_VISIBLE_DEVICES={device_ids[0]}")
-        
         cmd = (
-            f'{" ".join(env_prefix)} uv run scripts/compute_norm_stats.py \\\n'
+            f'{self.get_norm_stats_env_prefix()} uv run scripts/compute_norm_stats.py \\\n'
             f'    --config-name "{self.model.config_name}" \\\n'
             f'    --repo-id "{self.data.repo_id}"'
         )
         
-        if self.train.overwrite_norm_stats:
+        # Add overwrite flag if specified
+        if self.norm_stats.overwrite:
             cmd += ' \\\n    --overwrite'
-        
+            
         return cmd
     
     def get_train_cmd(self) -> str:
         """Generate training command."""
-        device_ids = self.gpu.get_device_ids()
-        
-        if self.train.multi_gpu and len(device_ids) > 1:
+        if len(self.train.gpu_ids) > 1:
             # Multi-GPU training with torchrun
             cmd = (
-                f'CUDA_VISIBLE_DEVICES={",".join(map(str, device_ids))} uv run torchrun \\\n'
+                f'CUDA_VISIBLE_DEVICES={",".join(map(str, self.train.gpu_ids))} uv run torchrun \\\n'
                 f'    --standalone \\\n'
                 f'    --nnodes=1 \\\n'
-                f'    --nproc_per_node={len(device_ids)} \\\n'
+                f'    --nproc_per_node={len(self.train.gpu_ids)} \\\n'
                 f'    scripts/train_pytorch.py {self.model.config_name} \\\n'
                 f'    --pytorch_weight_path "{self.model.pytorch_weight_path}" \\\n'
                 f'    --exp_name "{self.get_exp_name()}" \\\n'
@@ -170,9 +204,14 @@ class TaskConfig:
                 f'    --batch_size {self.train.batch_size}'
             )
         else:
-            # Single-GPU training
+            # Single GPU training
+            env_prefix = []
+            if not self.train.xla_preallocate:
+                env_prefix.append("XLA_PYTHON_CLIENT_PREALLOCATE=false")
+            env_prefix.append(f"CUDA_VISIBLE_DEVICES={self.train.gpu_ids[0]}")
+            
             cmd = (
-                f'CUDA_VISIBLE_DEVICES={device_ids[0]} uv run scripts/train_pytorch.py {self.model.config_name} \\\n'
+                f'{" ".join(env_prefix)} uv run scripts/train_pytorch.py {self.model.config_name} \\\n'
                 f'    --pytorch_weight_path "{self.model.pytorch_weight_path}" \\\n'
                 f'    --exp_name "{self.get_exp_name()}" \\\n'
                 f'    --data.repo_id "{self.data.repo_id}" \\\n'
@@ -191,23 +230,83 @@ class TaskConfig:
         if self.train.overwrite:
             cmd += ' \\\n    --overwrite'
         return cmd
-    
+
     def get_deploy_cmd(self) -> str:
         """Generate deployment command."""
-        return (
-            f'{self.get_env_prefix()} uv run examples/franka/server_policy.py \\\n'
+        cmd = (
+            f'{self.get_deploy_env_prefix()} uv run examples/franka/server_policy.py \\\n'
             f'    --host "{self.deploy.host}" \\\n'
             f'    --port {self.deploy.port} \\\n'
             f'    --repo-id "{self.data.repo_id}" \\\n'
             f'    --instruction "{self.instruction}" \\\n'
+        )
+        
+        # Add discrete_state_input if specified
+        if self.model.discrete_state_input is not None:
+            discrete_flag = "True" if self.model.discrete_state_input else "False"
+            cmd += f'    --discrete-state-input {discrete_flag} \\\n'
+        
+        cmd += (
             f'    policy:checkpoint \\\n'
             f'    --policy.config="{self.model.config_name}" \\\n'
             f'    --policy.dir="{self.get_checkpoint_dir()}"'
         )
+        
+        return cmd
+    
+    def get_sync_cmd(self) -> str:
+        """Generate commands to sync checkpoints and assets from remote server."""
+        if not self.remote.enabled or not self.remote.host or not self.remote.remote_path:
+            return "# Remote sync not configured"
+        
+        # Determine checkpoint step
+        if self.remote.checkpoint_step:
+            if self.remote.checkpoint_step == "latest":
+                # Use a command to find the latest checkpoint
+                checkpoint_step = "$(ssh {host} 'ls -1 {remote_path}/checkpoints/{config_name}/{exp_name}/ | grep -E \"^[0-9]+$\" | sort -n | tail -1')".format(
+                    host=self.remote.host,
+                    remote_path=self.remote.remote_path,
+                    config_name=self.model.config_name,
+                    exp_name=self.get_exp_name()
+                )
+            else:
+                checkpoint_step = self.remote.checkpoint_step
+        else:
+            checkpoint_step = str(self.train.num_train_steps)
+        
+        commands = []
+        
+        # Sync checkpoint directory
+        checkpoint_src = f"{self.remote.host}:{self.remote.remote_path}/checkpoints/{self.model.config_name}/{self.get_exp_name()}/{checkpoint_step}"
+        checkpoint_dst = f"{self.remote.local_path}/checkpoints/{self.model.config_name}/{self.get_exp_name()}/"
+        commands.append(f"# Sync checkpoint from remote server")
+        commands.append(f"mkdir -p {self.remote.local_path}/checkpoints/{self.model.config_name}/{self.get_exp_name()}")
+        commands.append(f"rsync -avzP {checkpoint_src} {checkpoint_dst}")
+        
+        # Sync wandb_id.txt file
+        wandb_src = f"{self.remote.host}:{self.remote.remote_path}/checkpoints/{self.model.config_name}/{self.get_exp_name()}/wandb_id.txt"
+        wandb_dst = f"{self.remote.local_path}/checkpoints/{self.model.config_name}/{self.get_exp_name()}/"
+        commands.append(f"# Sync wandb_id.txt file")
+        commands.append(f"rsync -avzP {wandb_src} {wandb_dst}")
+        
+        # Sync assets directory
+        assets_src = f"{self.remote.host}:{self.remote.remote_path}/assets/{self.model.config_name}/{self.data.repo_id}/"
+        assets_dst = f"{self.remote.local_path}/assets/{self.model.config_name}/"
+        commands.append(f"\n# Sync assets from remote server")
+        commands.append(f"mkdir -p {self.remote.local_path}/assets/{self.model.config_name}")
+        commands.append(f"rsync -avzP {assets_src} {assets_dst}")
+        
+        return "\n".join(commands)
     
     def print_commands(self) -> None:
         """Print all commands for this task."""
         print(f"=== Task: {self.task_name} ===\n")
+        
+        if self.remote.enabled:
+            print("# 0. Sync from remote server:")
+            print(self.get_sync_cmd())
+            print()
+        
         print("# 1. Compute norm stats:")
         print(self.get_norm_stats_cmd())
         print("\n# 2. Train:")

@@ -303,11 +303,17 @@ uv run examples/franka/run_task.py train --config $CONFIG_PATH
 # Run full pipeline (norm_stats + train)
 uv run examples/franka/run_task.py all --config $CONFIG_PATH
 
+# sync checkpoints and assets from remote server
+uv run examples/franka/run_task.py sync --config $CONFIG_PATH
+
 # Deploy (after training is complete)
 uv run examples/franka/run_task.py deploy --config $CONFIG_PATH
 
 # Dry run (show command without executing)
 uv run examples/franka/run_task.py train --config $CONFIG_PATH --dry-run
+uv run examples/franka/run_task.py norm_stats --config $CONFIG_PATH --dry-run
+uv run examples/franka/run_task.py sync --config $CONFIG_PATH --dry-run
+uv run examples/franka/run_task.py deploy --config $CONFIG_PATH --dry-run
 ```
 
 ## Manual Commands (Traditional Way)

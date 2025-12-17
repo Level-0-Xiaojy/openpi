@@ -18,26 +18,38 @@ data:
   repo_id: "pi05_sim_sm_10hz_pp"                # LeRobot dataset repo ID
   data_dir: "share_datasets/sim_sm_10hz_pp"     # Raw data directory (for conversion)
 
+# Norm stats config
+norm_stats:
+  # GPU settings for norm stats computation
+  gpu_id: 0                                     # Single GPU for norm stats
+  xla_preallocate: false
+  overwrite: false                              # Set to true to recompute norm stats even if they exist
+
 # Training config
 train:
   num_train_steps: 30000
   save_interval: 5000
   batch_size: 32                                # Total batch size across all GPUs
   overwrite: true
-  # Multi-GPU training settings
-  multi_gpu: true
-  num_gpus: 4                                   # Number of GPUs to use
-  # exp_name will default to task_name if not specified
-  exp_name: "pi05_sim_sm_10hz_pp_multi_gpu_training"
+  exp_name: "pi05_sim_sm_10hz_pp_multi_gpu_training" # Experiment name (optional, defaults to task_name)
+  # GPU settings for training
+  gpu_ids: [2, 3, 4, 5]                         # Multi-GPU training
+  xla_preallocate: false
 
 # Deployment config  
 deploy:
   host: "0.0.0.0"
-  port: 12559
-  # checkpoint_dir will default to "checkpoints/{config_name}/{task_name}/{latest_step}"
-  checkpoint_dir: "checkpoints/pi05_franka/pi05_sim_sm_10hz_pp/30000"
-
-# GPU config
-gpu:
-  device_ids: [2, 3, 4, 5]                            # List of GPU device IDs to use
+  port: 12311
+  checkpoint_step: "latest"                     # Use latest checkpoint
+  # GPU settings for deployment
+  gpu_id: 1                                     # Single GPU for deployment
   xla_preallocate: false
+
+
+# Remote sync config (for downloading checkpoints and assets from remote server)
+remote:
+  enabled: true
+  host: "wq-dev0"
+  remote_path: "/mnt/public/bingwen/Projects/openpi"
+  local_path: "~/Documents/openpi"
+  checkpoint_step: "latest"                     # Sync latest checkpoint

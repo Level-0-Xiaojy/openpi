@@ -105,6 +105,9 @@ class Args:
     
     # Task instruction 
     instruction: str | None = None
+    
+    # Whether to use discrete state input for the policy
+    discrete_state_input: bool | None = None
 
 
 # Default checkpoints that should be used for each environment.
@@ -145,8 +148,21 @@ def create_policy(args: Args) -> _policy.Policy:
     """Create a policy from the given arguments."""
     match args.policy:
         case Checkpoint():
+            # Load the training config
+            train_config = _config.get_config(args.policy.config)
+            
+            # Override discrete_state_input if provided
+            if args.discrete_state_input is not None:
+                train_config = dataclasses.replace(
+                    train_config,
+                    model=dataclasses.replace(
+                        train_config.model,
+                        discrete_state_input=args.discrete_state_input
+                    )
+                )
+            
             return _policy_config.create_trained_policy(
-                _config.get_config(args.policy.config), 
+                train_config, 
                 args.policy.dir, 
                 default_prompt=args.default_prompt,  # Use default prompt
                 repo_id=args.repo_id,  # Pass repo_id to load norm stats from assets directory

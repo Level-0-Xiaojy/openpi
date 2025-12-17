@@ -1,44 +1,86 @@
-# Task configuration template
-# Copy this file and modify for your own task
+# OpenPi Franka Task Configuration Template
+# Complete configuration template based on run_task.py and task_config.py
+# Copy this file and modify it for your own task configuration
 
-# Basic info
-task_name: "your_task_name"           # Used as exp_name and for finding checkpoints
-instruction: "your task instruction"  # Language instruction for the robot
+# ============================================================================
+# Basic Task Information
+# ============================================================================
+task_name: "your_task_name"                   # Task name, used as experiment name and for finding checkpoints
+instruction: "your robot instruction here"    # Language instruction for robot execution
 
-# Model config
+# ============================================================================
+# Model Configuration
+# ============================================================================
 model:
-  config_name: "pi05_franka"                    # Options: pi05_franka, pi05_franka_single_cam, pi0_fast_franka
-  pytorch_weight_path: "checkpoints/torch/pi05_base"
-  # discrete_state_input: true                 # Optional: true for discrete tokens, false for continuous vector
-                                                # Default: true for pi05, false for others
+  config_name: "pi05_franka"                  # Training configuration name
+                                              # Options: "pi05_franka", "pi05_franka_single_cam", "pi0_fast_franka"
+  pytorch_weight_path: "checkpoints/torch/pi05_base"  # Base model weights path
+  discrete_state_input: false                # Whether to use discrete state input
+                                              # true: use --model.discrete-state-input
+                                              # false: use --model.no-discrete-state-input
+                                              # null: use default setting (pi05=true, others=false)
 
-# Data config
+# ============================================================================
+# Data Configuration
+# ============================================================================
 data:
-  repo_id: "your_lerobot_dataset_id"            # LeRobot dataset repo ID (in ~/.cache/huggingface/lerobot/)
-  data_dir: "path/to/raw/data"                  # Raw data directory (only needed for data conversion)
+  repo_id: "your_dataset_repo_id"            # LeRobot dataset repository ID
+                                              # Located in ~/.cache/huggingface/lerobot/
+  data_dir: "path/to/raw/data"               # Raw data directory (optional, only needed for data conversion)
 
-# Training config
+# ============================================================================
+# Norm Stats Configuration
+# ============================================================================
+norm_stats:
+  # GPU settings (norm stats computation uses single GPU only)
+  gpu_id: 2                                  # Single GPU ID for norm stats computation
+  xla_preallocate: false                     # XLA memory preallocation (usually set to false)
+  overwrite: false                           # Whether to force recompute norm stats
+                                              # false: skip if already exists
+                                              # true: force recompute (adds --overwrite parameter)
+
+# ============================================================================
+# Training Configuration
+# ============================================================================
 train:
-  num_train_steps: 30000
-  save_interval: 5000
-  batch_size: 32                                # Total batch size across all GPUs
-  overwrite: true                               # Overwrite existing checkpoints
-  overwrite_norm_stats: false                   # Set to true to recompute norm stats if they exist
-  # Multi-GPU training options
-  multi_gpu: false                              # Set to true for multi-GPU training  
-  num_gpus: 1                                   # Number of GPUs to use
-  # exp_name: "custom_name"                     # Optional: defaults to task_name
+  # Training parameters
+  num_train_steps: 30000                     # Number of training steps
+  save_interval: 5000                        # Save checkpoint every N steps
+  batch_size: 32                             # Total batch size (across all GPUs)
+  overwrite: true                            # Whether to overwrite existing experiments
+  exp_name: "your_experiment_name"           # Experiment name (optional, defaults to task_name)
+  
+  # GPU settings
+  gpu_ids: [0]                               # GPU ID list for training
+                                              # Single GPU: [0]
+                                              # Multi-GPU: [2, 3, 4, 5] (automatically uses torchrun)
+  xla_preallocate: false                     # XLA memory preallocation setting
 
-# Deployment config  
+# ============================================================================
+# Deployment Configuration
+# ============================================================================
 deploy:
-  host: "0.0.0.0"
-  port: 12559
-  # checkpoint_dir: "path/to/checkpoint"        # Optional: auto-finds latest if not specified
+  # Server settings
+  host: "0.0.0.0"                           # Deployment server host address
+  port: 12345                               # Deployment server port
+  checkpoint_step: "latest"                 # Checkpoint to use
+                                              # "latest": automatically use latest checkpoint
+                                              # "25000": use specific step checkpoint
+                                              # null: auto-detection
+  
+  # GPU settings (deployment uses single GPU only)
+  gpu_id: 0                                  # Single GPU ID for deployment
+  xla_preallocate: false                     # XLA memory preallocation (usually set to false)
 
-# GPU config
-gpu:
-  # Single GPU (default)
-  device_id: 0                                  # For single GPU training
-  # Multi-GPU 
-  # device_ids: [0, 1]                          # For multi-GPU training (comment out device_id)
-  xla_preallocate: false
+# ============================================================================
+# Remote Sync Configuration (Optional)
+# ============================================================================
+remote:
+  enabled: false                             # Whether to enable remote sync
+  host: "wq-dev0"                           # Remote server SSH hostname or IP
+  remote_path: "/mnt/public/bingwen/Projects/openpi"  # Remote openpi directory path
+  local_path: "~/Documents/openpi"           # Local openpi directory path
+  checkpoint_step: "latest"                 # Checkpoint to sync
+                                              # "latest": sync latest checkpoint
+                                              # "25000": sync specific step checkpoint
+                                              # null: use training num_steps

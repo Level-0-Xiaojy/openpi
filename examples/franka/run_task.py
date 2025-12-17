@@ -65,6 +65,16 @@ def cmd_deploy(config: TaskConfig, args: argparse.Namespace) -> int:
     return run_command(cmd, args.dry_run)
 
 
+def cmd_sync(config: TaskConfig, args: argparse.Namespace) -> int:
+    """Sync checkpoints and assets from remote server."""
+    if not config.remote.enabled:
+        print("ERROR: Remote sync not enabled in config!")
+        return 1
+    
+    cmd = config.get_sync_cmd()
+    return run_command(cmd, args.dry_run)
+
+
 def cmd_all(config: TaskConfig, args: argparse.Namespace) -> int:
     """Run full pipeline: norm_stats -> train."""
     print("=== Running full pipeline ===")
@@ -95,8 +105,8 @@ def main():
     )
     parser.add_argument(
         "command",
-        choices=["show", "norm_stats", "train", "deploy", "all"],
-        help="Command to run: show (print commands), norm_stats, train, deploy, or all (norm_stats + train)"
+        choices=["show", "sync", "norm_stats", "train", "deploy", "all"],
+        help="Command to run: show (print commands), sync (sync from remote), norm_stats, train, deploy, or all (norm_stats + train)"
     )
     parser.add_argument(
         "--config", "-c",
@@ -123,6 +133,7 @@ def main():
     # Dispatch to command handler
     commands = {
         "show": cmd_show,
+        "sync": cmd_sync,
         "norm_stats": cmd_norm_stats,
         "train": cmd_train,
         "deploy": cmd_deploy,
