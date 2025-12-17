@@ -20,6 +20,7 @@ import argparse
 import os
 import subprocess
 import sys
+import signal
 from pathlib import Path
 
 # Add parent directory to path for imports
@@ -28,7 +29,8 @@ from task_config import TaskConfig
 
 
 def run_command(cmd: str, dry_run: bool = False) -> int:
-    """Run a shell command."""
+    """Run a shell command with proper signal handling."""
+    clean_cmd = cmd.replace('\\\n', ' ')
     print(f"\n{'[DRY RUN] ' if dry_run else ''}Running command:")
     print(f"  {cmd.replace(chr(92) + chr(10), chr(32))}")
     print()
@@ -36,9 +38,36 @@ def run_command(cmd: str, dry_run: bool = False) -> int:
     if dry_run:
         return 0
     
-    # Use shell to handle the command properly
-    result = subprocess.run(cmd.replace('\\\n', ' '), shell=True)
-    return result.returncode
+    # Use Popen instead of run, and set preexec_fn=os.setsid.
+    # This starts the child process in a new process group, allowing us to 
+    # kill the entire group (including grandchildren) later.
+    process = subprocess.Popen(
+        clean_cmd, 
+        shell=True, 
+        preexec_fn=os.setsid 
+    )
+    
+    try:
+        # Wait for the process to complete
+        return process.wait()
+    except KeyboardInterrupt:
+        print("\n[INFO] User interrupted (Ctrl+C). Cleaning up processes...")
+        try:
+            # Send SIGTERM to the entire process group (PGID)
+            # os.getpgid(process.pid) retrieves the group ID of the child process
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            
+            # Wait briefly for graceful exit; otherwise, force kill
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                print("[WARN] Process did not exit, force killing...")
+                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        except Exception as e:
+            print(f"[ERROR] Failed to clean up process: {e}")
+        
+        # Return standard "interrupted" exit code
+        return 130
 
 
 def cmd_show(config: TaskConfig, args: argparse.Namespace) -> int:

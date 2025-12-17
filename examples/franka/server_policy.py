@@ -108,6 +108,9 @@ class Args:
     
     # Whether to use discrete state input for the policy
     discrete_state_input: bool | None = None
+    
+    # Normalization mode: "auto", "quantile_norm", "z_score"
+    norm_mode: str = "auto"
 
 
 # Default checkpoints that should be used for each environment.
@@ -158,6 +161,16 @@ def create_policy(args: Args) -> _policy.Policy:
                     model=dataclasses.replace(
                         train_config.model,
                         discrete_state_input=args.discrete_state_input
+                    )
+                )
+            
+            # Override norm_mode if provided and config supports it
+            if args.norm_mode != "auto" and hasattr(train_config.data, 'norm_mode'):
+                train_config = dataclasses.replace(
+                    train_config,
+                    data=dataclasses.replace(
+                        train_config.data,
+                        norm_mode=args.norm_mode
                     )
                 )
             

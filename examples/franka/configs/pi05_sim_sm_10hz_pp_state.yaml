@@ -39,7 +39,7 @@ train:
 deploy:
   host: "0.0.0.0"
   port: 12313
-  checkpoint_step: "latest"                     # Use latest checkpoint
+  checkpoint_step: "25000"                     # Use latest checkpoint
   # GPU settings for deployment
   gpu_id: 2                                     # Single GPU for deployment
   xla_preallocate: false
@@ -51,4 +51,4 @@ remote:
   host: "wq-dev0"
   remote_path: "/mnt/public/bingwen/Projects/openpi"
   local_path: "~/Documents/openpi"
-  checkpoint_step: "latest"                     # Sync latest checkpoint
+  checkpoint_step: "25000"                     # Sync latest checkpoint

@@ -467,6 +467,8 @@ class LeRobotFrankaEEDataConfig(DataConfigFactory):
     raw_action_is_delta: bool = True # False for additional process(abs_action - state) to get delta action for training
     # train actions using rotation_6d
     action_train_with_rotation_6d: bool = False
+    # Normalization mode: "auto" (use model type default), "quantile_norm", "z_score"
+    norm_mode: str = "auto"
 
     def generate_observations(image:np.ndarray, wrist_image:np.ndarray, state:np.ndarray, prompt:str) -> dict:
         """Creates an input example for the Franka policy."""
@@ -534,12 +536,24 @@ class LeRobotFrankaEEDataConfig(DataConfigFactory):
         # You do not need to change anything here for your own dataset.
         model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config) # control pi0 or pi0-fast
 
+        # Determine normalization mode
+        if self.norm_mode == "auto":
+            use_quantile_norm = model_config.model_type != ModelType.PI0
+        elif self.norm_mode == "quantile_norm":
+            use_quantile_norm = True
+        elif self.norm_mode == "z_score":
+            use_quantile_norm = False
+        else:
+            raise ValueError(f"Invalid norm_mode: {self.norm_mode}. Must be 'auto', 'quantile_norm', or 'z_score'")
+
         # We return all data transforms for training and inference. No need to change anything here.
+        base_config = self.create_base_config(assets_dirs, model_config)
         return dataclasses.replace(
-            self.create_base_config(assets_dirs, model_config),
+            base_config,
             repack_transforms=repack_transform,
             data_transforms=data_transforms,
             model_transforms=model_transforms,
+            use_quantile_norm=use_quantile_norm,  # Override with our custom setting
         )
 
 
@@ -556,7 +570,9 @@ class LeRobotFrankaSingleCamEEDataConfig(DataConfigFactory):
     raw_action_is_delta: bool = True # False for additional process(abs_action - state) to get delta action for training
     # train actions using rotation_6d
     action_train_with_rotation_6d: bool = False
-
+    # Normalization mode: "auto" (use model type default), "quantile_norm", "z_score"
+    norm_mode: str = "auto"
+    
     def generate_observations(image:np.ndarray, state:np.ndarray, prompt:str) -> dict:
         """Creates an input example for the Franka policy."""
         return {
@@ -621,13 +637,26 @@ class LeRobotFrankaSingleCamEEDataConfig(DataConfigFactory):
         # You do not need to change anything here for your own dataset.
         model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config) # control pi0 or pi0-fast
 
+        # Determine normalization mode
+        if self.norm_mode == "auto":
+            use_quantile_norm = model_config.model_type != ModelType.PI0
+        elif self.norm_mode == "quantile_norm":
+            use_quantile_norm = True
+        elif self.norm_mode == "z_score":
+            use_quantile_norm = False
+        else:
+            raise ValueError(f"Invalid norm_mode: {self.norm_mode}. Must be 'auto', 'quantile_norm', or 'z_score'")
+
         # We return all data transforms for training and inference. No need to change anything here.
+        base_config = self.create_base_config(assets_dirs, model_config)
         return dataclasses.replace(
-            self.create_base_config(assets_dirs, model_config),
+            base_config,
             repack_transforms=repack_transform,
             data_transforms=data_transforms,
             model_transforms=model_transforms,
+            use_quantile_norm=use_quantile_norm,  # Override with our custom setting
         )
+
 
 @dataclasses.dataclass(frozen=True)
 class TrainConfig:
@@ -1138,6 +1167,7 @@ _CONFIGS = [
         data=LeRobotFrankaEEDataConfig(
             repo_id=tyro.MISSING,  # must be provided by user via CLI
             base_config=DataConfig(prompt_from_task=True),
+            norm_mode="auto",
             # assets will use default value, load norm stats from ./assets/pi05_franka/{repo_id}/ 
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
@@ -1150,6 +1180,7 @@ _CONFIGS = [
         data=LeRobotFrankaSingleCamEEDataConfig(
             repo_id=tyro.MISSING,  # must be provided by user via CLI
             base_config=DataConfig(prompt_from_task=True),
+            norm_mode="auto",
             # assets will use default value, load norm stats from ./assets/pi05_franka_single_cam/{repo_id}/         ),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),

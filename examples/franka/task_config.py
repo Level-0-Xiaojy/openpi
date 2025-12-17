@@ -77,6 +77,9 @@ class TaskConfig:
     norm_stats: NormStatsConfig = dataclasses.field(default_factory=NormStatsConfig)
     remote: RemoteConfig = dataclasses.field(default_factory=RemoteConfig)
     
+    # Normalization mode: "quantile_norm", "z_score", or "auto" (auto uses model type default)
+    norm_mode: str = "auto"
+    
     @classmethod
     def from_yaml(cls, yaml_path: str) -> "TaskConfig":
         """Load config from a YAML file."""
@@ -92,6 +95,7 @@ class TaskConfig:
             deploy=DeployConfig(**data.get('deploy', {})),
             norm_stats=NormStatsConfig(**data.get('norm_stats', {})),
             remote=RemoteConfig(**data.get('remote', {})),
+            norm_mode=data.get('norm_mode', 'auto'),  # Load norm_mode from yaml
         )
     
     def to_yaml(self, yaml_path: str) -> None:
@@ -101,6 +105,7 @@ class TaskConfig:
             'instruction': self.instruction,
             'model': dataclasses.asdict(self.model),
             'data': dataclasses.asdict(self.data),
+            'norm_mode': self.norm_mode,  # Save norm_mode to yaml
             'train': dataclasses.asdict(self.train),
             'deploy': dataclasses.asdict(self.deploy),
             'norm_stats': dataclasses.asdict(self.norm_stats),
@@ -227,6 +232,10 @@ class TaskConfig:
             else:
                 cmd += ' \\\n    --model.no-discrete-state-input'
         
+        # Add norm_mode parameter if not auto
+        if self.norm_mode != "auto":
+            cmd += f' \\\n    --data.norm-mode "{self.norm_mode}"'
+        
         if self.train.overwrite:
             cmd += ' \\\n    --overwrite'
         return cmd
@@ -245,6 +254,10 @@ class TaskConfig:
         if self.model.discrete_state_input is not None:
             discrete_flag = "True" if self.model.discrete_state_input else "False"
             cmd += f'    --discrete-state-input {discrete_flag} \\\n'
+        
+        # Add norm_mode if not auto
+        if self.norm_mode != "auto":
+            cmd += f'    --norm-mode "{self.norm_mode}" \\\n'
         
         cmd += (
             f'    policy:checkpoint \\\n'
