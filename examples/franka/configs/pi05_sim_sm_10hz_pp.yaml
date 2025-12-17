@@ -19,7 +19,7 @@ data:
   data_dir: "share_datasets/sim_sm_10hz_pp"     # Raw data directory (for conversion)
 
 # Normalization mode: "auto" (use model type default), "quantile_norm", "z_score"
-norm_mode: "z_score"  # Force z-score normalization to avoid quantile issues
+norm_mode: "quantile_norm"  # Force z-score normalization to avoid quantile issues
 
 # Norm stats config
 norm_stats:

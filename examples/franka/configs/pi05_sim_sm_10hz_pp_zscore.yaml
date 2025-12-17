@@ -1,10 +1,10 @@
 # Task configuration for training and deployment
 # Use this file with:
-#   Train:  uv run examples/franka/run_task.py train --config configs/pi05_real_sm_10hz_pp.yaml
-#   Deploy: uv run examples/franka/run_task.py deploy --config configs/pi05_real_sm_10hz_pp.yaml
+#   Train:  uv run examples/franka/run_task.py train --config configs/pi05_sim_sm_10hz_pp.yaml
+#   Deploy: uv run examples/franka/run_task.py deploy --config configs/pi05_sim_sm_10hz_pp.yaml
 
 # Basic info
-task_name: "pi05_real_sm_10hz_pp"
+task_name: "pi05_sim_sm_10hz_pp_zscore"
 instruction: "pick the dice and place it into the green plate"
 
 # Model config
@@ -15,11 +15,11 @@ model:
 
 # Data config
 data:
-  repo_id: "pi05_real_sm_10hz_pp"               # LeRobot dataset repo ID
-  data_dir: "share_datasets/real_sm_10hz_pp"    # Raw data directory (for conversion)
+  repo_id: "pi05_sim_sm_10hz_pp"               # LeRobot dataset repo ID
+  data_dir: "share_datasets/sim_sm_10hz_pp"    # Raw data directory (for conversion)
 
 # Normalization mode: "auto" (use model type default), "quantile_norm", "z_score"  
-norm_mode: "quantile_norm"  # Force z-score normalization to avoid quantile issues
+norm_mode: "z_score"  # Force z-score normalization to avoid quantile issues
 
 # Norm stats config
 norm_stats:
@@ -34,15 +34,14 @@ train:
   save_interval: 5000
   batch_size: 32                                # Total batch size across all GPUs
   overwrite: true
-  exp_name: "pi05_real_sm_10hz_pp_multi_gpu_training" # Experiment name (optional, defaults to task_name)
   # GPU settings for training
-  gpu_ids: [6, 7]                               # Multi-GPU training
+  gpu_ids: [2, 3]                               # Multi-GPU training
   xla_preallocate: false
 
 # Deployment config  
 deploy:
   host: "0.0.0.0"
-  port: 12312
+  port: 12321
   checkpoint_step: "25000"                     # Use latest checkpoint
   # GPU settings for deployment
   gpu_id: 6                                     # Single GPU for deployment

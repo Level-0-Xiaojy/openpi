@@ -291,6 +291,10 @@ gpu:
 # Show all commands that will be run
 CONFIG_PATH="examples/franka/configs/pi05_sim_sm_10hz_pp.yaml"
 CONFIG_PATH="examples/franka/configs/pi05_real_sm_10hz_pp.yaml"
+CONFIG_PATH="examples/franka/configs/pi05_sim_sm_10hz_pp_zscore.yaml"
+CONFIG_PATH="examples/franka/configs/pi05_real_sm_10hz_pp_zscore.yaml"
+CONFIG_PATH="examples/franka/configs/pi05_sim_sm_10hz_pp_zscore_state.yaml"
+CONFIG_PATH="examples/franka/configs/pi05_real_sm_10hz_pp_zscore_state.yaml"
 
 uv run examples/franka/run_task.py show --config $CONFIG_PATH
 
