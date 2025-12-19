@@ -289,12 +289,12 @@ class TaskConfig:
         
         commands = []
         
-        # Sync checkpoint directory
-        checkpoint_src = f"{self.remote.host}:{self.remote.remote_path}/checkpoints/{self.model.config_name}/{self.get_exp_name()}/{checkpoint_step}"
-        checkpoint_dst = f"{self.remote.local_path}/checkpoints/{self.model.config_name}/{self.get_exp_name()}/"
-        commands.append(f"# Sync checkpoint from remote server")
-        commands.append(f"mkdir -p {self.remote.local_path}/checkpoints/{self.model.config_name}/{self.get_exp_name()}")
-        commands.append(f"rsync -avzP {checkpoint_src} {checkpoint_dst}")
+        # Sync assets directory
+        assets_src = f"{self.remote.host}:{self.remote.remote_path}/assets/{self.model.config_name}/{self.data.repo_id}/"
+        assets_dst = f"{self.remote.local_path}/assets/{self.model.config_name}/"
+        commands.append(f"\n# Sync assets from remote server")
+        commands.append(f"mkdir -p {self.remote.local_path}/assets/{self.model.config_name}")
+        commands.append(f"rsync -avzP {assets_src} {assets_dst}")
         
         # Sync wandb_id.txt file
         wandb_src = f"{self.remote.host}:{self.remote.remote_path}/checkpoints/{self.model.config_name}/{self.get_exp_name()}/wandb_id.txt"
@@ -302,12 +302,12 @@ class TaskConfig:
         commands.append(f"# Sync wandb_id.txt file")
         commands.append(f"rsync -avzP {wandb_src} {wandb_dst}")
         
-        # Sync assets directory
-        assets_src = f"{self.remote.host}:{self.remote.remote_path}/assets/{self.model.config_name}/{self.data.repo_id}/"
-        assets_dst = f"{self.remote.local_path}/assets/{self.model.config_name}/"
-        commands.append(f"\n# Sync assets from remote server")
-        commands.append(f"mkdir -p {self.remote.local_path}/assets/{self.model.config_name}")
-        commands.append(f"rsync -avzP {assets_src} {assets_dst}")
+        # Sync checkpoint directory
+        checkpoint_src = f"{self.remote.host}:{self.remote.remote_path}/checkpoints/{self.model.config_name}/{self.get_exp_name()}/{checkpoint_step}"
+        checkpoint_dst = f"{self.remote.local_path}/checkpoints/{self.model.config_name}/{self.get_exp_name()}/"
+        commands.append(f"# Sync checkpoint from remote server")
+        commands.append(f"mkdir -p {self.remote.local_path}/checkpoints/{self.model.config_name}/{self.get_exp_name()}")
+        commands.append(f"rsync -avzP --exclude='optimizer.pt' {checkpoint_src} {checkpoint_dst}")
         
         return "\n".join(commands)
     

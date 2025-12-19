@@ -1,22 +1,22 @@
 # Task configuration for training and deployment
 # Use this file with:
-#   Train:  uv run examples/franka/run_task.py train --config configs/pi05_real_sm_10hz_pp.yaml
-#   Deploy: uv run examples/franka/run_task.py deploy --config configs/pi05_real_sm_10hz_pp.yaml
+#   Train:  uv run examples/franka/run_task.py train --config configs/pi05_sim_sm_10hz_pp.yaml
+#   Deploy: uv run examples/franka/run_task.py deploy --config configs/pi05_sim_sm_10hz_pp.yaml
 
 # Basic info
-task_name: "pi05_real_sm_10hz_pp_zscore_state"
+task_name: "pi05_sim_sm_10hz_pp_zscore_state_single"
 instruction: "pick the dice and place it into the green plate"
 
 # Model config
 model:
-  config_name: "pi05_franka"                    # Uses config that supports norm_mode
+  config_name: "pi05_franka_single_cam"        # Uses config that supports norm_mode
   pytorch_weight_path: "checkpoints/torch/pi05_base"  # Base model weights
   discrete_state_input: true                   # Not use state for train
 
 # Data config
 data:
-  repo_id: "pi05_real_sm_10hz_pp"               # LeRobot dataset repo ID
-  data_dir: "share_datasets/real_sm_10hz_pp"    # Raw data directory (for conversion)
+  repo_id: "pi05_sim_sm_10hz_pp"               # LeRobot dataset repo ID
+  data_dir: "share_datasets/sim_sm_10hz_pp"    # Raw data directory (for conversion)
 
 # Normalization mode: "auto" (use model type default), "quantile_norm", "z_score"  
 norm_mode: "z_score"  # Force z-score normalization to avoid quantile issues

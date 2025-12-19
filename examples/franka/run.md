@@ -289,12 +289,15 @@ gpu:
 
 ```bash
 # Show all commands that will be run
-CONFIG_PATH="examples/franka/configs/pi05_sim_sm_10hz_pp.yaml"
 CONFIG_PATH="examples/franka/configs/pi05_real_sm_10hz_pp.yaml"
-CONFIG_PATH="examples/franka/configs/pi05_sim_sm_10hz_pp_zscore.yaml"
 CONFIG_PATH="examples/franka/configs/pi05_real_sm_10hz_pp_zscore.yaml"
-CONFIG_PATH="examples/franka/configs/pi05_sim_sm_10hz_pp_zscore_state.yaml"
 CONFIG_PATH="examples/franka/configs/pi05_real_sm_10hz_pp_zscore_state.yaml"
+CONFIG_PATH="examples/franka/configs/pi05_real_sm_10hz_pp_zscore_state_single.yaml"
+
+CONFIG_PATH="examples/franka/configs/pi05_sim_sm_10hz_pp.yaml"
+CONFIG_PATH="examples/franka/configs/pi05_sim_sm_10hz_pp_zscore.yaml"
+CONFIG_PATH="examples/franka/configs/pi05_sim_sm_10hz_pp_zscore_state.yaml"
+CONFIG_PATH="examples/franka/configs/pi05_sim_sm_10hz_pp_zscore_state_single.yaml"
 
 uv run examples/franka/run_task.py show --config $CONFIG_PATH
 
@@ -354,4 +357,10 @@ XLA_PYTHON_CLIENT_PREALLOCATE=false CUDA_VISIBLE_DEVICES=0 uv run examples/frank
     policy:checkpoint \
     --policy.config="pi05_franka" \
     --policy.dir="checkpoints/pi05_franka/pp_withik_10hz_no_filter/40000"
+```
+
+```bash
+cd /mnt/public/bingwen/Projects/openpi && uv run python scripts/diagnose_yaml_config.py --config examples/franka/configs/pi05_real_sm_10hz_pp.yaml --num_batches 5
+
+cd /mnt/public/bingwen/Projects/openpi && uv run python scripts/visualize_action_distribution.py --config examples/franka/configs/pi05_real_sm_10hz_pp.yaml --num_batches 10 --output_dir action_analysis_pi05
 ```
