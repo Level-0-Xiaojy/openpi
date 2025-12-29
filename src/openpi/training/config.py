@@ -17,6 +17,7 @@ import openpi.models.model as _model
 import openpi.models.pi0_config as pi0_config
 import openpi.models.pi0_fast as pi0_fast
 import openpi.models.tokenizer as _tokenizer
+import openpi.policies.arx_policy as arx_policy
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
@@ -222,6 +223,53 @@ class SimpleDataConfig(DataConfigFactory):
             self.create_base_config(assets_dirs, model_config),
             data_transforms=self.data_transforms(model_config),
             model_transforms=self.model_transforms(model_config),
+        )
+    
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotX2robotDataConfig(DataConfigFactory):
+    use_delta_actions: bool = False
+
+    repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
+        default=_transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "images": {
+                            "left_wrist_view": "left_wrist_view",
+                            "face_view": "face_view",
+                            "right_wrist_view": "right_wrist_view",
+                        },
+                        "state": "state",
+                        "actions": "actions",
+                        "actions_is_pad": "actions_is_pad",
+                        "prompt": "task",
+                    }
+                )
+            ]
+        )
+    )
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        data_transforms = _transforms.Group(
+            inputs=[arx_policy.ArxInputs(action_dim=model_config.action_dim, model_type=model_config.model_type)],
+            outputs=[arx_policy.ArxOutputs()],
+        )
+        if self.use_delta_actions:
+            delta_action_mask = _transforms.make_bool_mask(6, -1, 6, -1)
+            data_transforms = data_transforms.push(
+                inputs=[_transforms.DeltaActions(delta_action_mask)],
+                outputs=[_transforms.AbsoluteActions(delta_action_mask)],
+            )
+
+        model_transforms = ModelTransformFactory()(model_config)
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=self.repack_transforms,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
         )
 
 
@@ -964,6 +1012,45 @@ _CONFIGS = [
         overwrite=True,
         exp_name="debug_pi05",
         wandb_enabled=False,
+    ),
+    TrainConfig(
+        name="plugin_1227",
+        model=pi0_config.Pi0Config(),
+        data=LeRobotX2robotDataConfig(
+            repo_id="plugin_1227", # dataset repo
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="plugin_1227",
+        batch_size=8,
+        num_train_steps=30_000,
+    ),
+    TrainConfig(
+        name="microwave_1218",
+        model=pi0_config.Pi0Config(),
+        data=LeRobotX2robotDataConfig(
+            repo_id="microwave_1218", # dataset repo
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="microwave_1218",
+        batch_size=8,
+        num_train_steps=30_000,
+    ),
+    TrainConfig(
+        name="microwave_1218_lora",
+        model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
+        data=LeRobotX2robotDataConfig(
+            repo_id="microwave_1218", # dataset repo
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        exp_name="microwave_1218_lora",
+        batch_size=8,
+        num_train_steps=30_000,
+        freeze_filter=pi0_config.Pi0Config(
+            paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
+        ).get_freeze_filter(),
+        ema_decay=None,
     ),
     # RoboArena & PolaRiS configs.
     *roboarena_config.get_roboarena_configs(),
