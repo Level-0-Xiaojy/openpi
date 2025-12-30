@@ -4,6 +4,9 @@ This script is used to compute the normalization statistics for a given config. 
 will compute the mean and standard deviation of the data in the dataset and save it
 to the config assets directory.
 """
+import os
+os.environ["HF_LEROBOT_HOME"] = "/share/xuyuanfan-local/small_project/.cache/hf_home"  # Set it to yours
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"  # Only use the first GPU
 
 import numpy as np
 import tqdm

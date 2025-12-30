@@ -98,7 +98,8 @@ class RepackTransform(DataTransformFn):
 
     def __call__(self, data: DataDict) -> DataDict:
         flat_item = flatten_dict(data)
-        return jax.tree.map(lambda k: flat_item[k], self.structure)
+        result = jax.tree.map(lambda k: flat_item[k], self.structure)
+        return result
 
 
 @dataclasses.dataclass(frozen=True)
@@ -263,6 +264,8 @@ class TokenizePrompt(DataTransformFn):
             prompt = prompt.item()
 
         tokens, token_masks = self.tokenizer.tokenize(prompt, state)
+        # print(f"Prompt: {prompt}")
+        # print(f"Tokens: {tokens}")
         return {**data, "tokenized_prompt": tokens, "tokenized_prompt_mask": token_masks}
 
 
@@ -344,6 +347,72 @@ class PromptFromLeRobotTask(DataTransformFn):
             raise ValueError(f"{task_index=} not found in task mapping: {self.tasks}")
 
         return {**data, "prompt": prompt}
+
+
+@dataclasses.dataclass(frozen=True)
+class PromptFromLeRobotTaskAndSubtask(DataTransformFn):
+    """Extracts a prompt from the current LeRobot dataset task and subtask.
+    
+    Combines task and subtask into format: "Task: {task}. Subtask: {subtask}"
+    
+    This transform expects:
+    - tasks: dict[int, str] - mapping from task_index to task description
+    - subtasks: dict[str, list[str]] - mapping from task_id (string) to list of subtask descriptions
+    - task_id_mapping: dict[int, str] - mapping from task_index to task_id (string)
+    
+    The data should contain:
+    - task_index (int): index of the task
+    - subtask_idx (int, optional): index of the subtask within the task's subtask list
+    """
+
+    # Contains the LeRobot dataset tasks (dataset.meta.tasks).
+    tasks: dict[int, str]
+    # Contains the LeRobot dataset subtasks (loaded from meta/subtasks.json).
+    # Format: dict[str, list[str]] where key is task_id (string) and value is list of subtasks.
+    subtasks: dict[str, list[str]] | None = None
+    # Mapping from task_index (int) to task_id (string) to look up subtasks
+    task_id_mapping: dict[int, str] | None = None
+
+    def __call__(self, data: DataDict) -> DataDict:
+        """Extract task and subtask prompts from data and combine them.
+        
+        The combined prompt format is: "Task: {task}. Subtask: {subtask}"
+        If subtask is not available, falls back to just the task prompt.
+        """
+        if "task_index" not in data:
+            raise ValueError('Cannot extract prompt without "task_index"')
+
+        task_index = int(data["task_index"])
+        if (task_prompt := self.tasks.get(task_index)) is None:
+            raise ValueError(f"{task_index=} not found in task mapping: {self.tasks}")
+
+        # Try to get subtask information if available
+        subtask_prompt = None
+        if self.subtasks is not None and "subtask_idx" in data:
+            subtask_idx = int(data["subtask_idx"])
+            
+            # Map task_index (int) to task_id (string) to look up subtasks
+            # Use task_id_mapping if provided, otherwise try to get task_id directly from data
+            task_id = None
+            if self.task_id_mapping is not None:
+                task_id = self.task_id_mapping.get(task_index)
+            elif "task_id" in data:
+                task_id = str(data["task_id"])
+            
+            # Look up subtask description using task_id and subtask_idx
+            if task_id is not None and task_id in self.subtasks:
+                subtasks_list = self.subtasks[task_id]
+                if 0 <= subtask_idx < len(subtasks_list):
+                    subtask_prompt = subtasks_list[subtask_idx]
+
+        # Combine task and subtask into the required format
+        if subtask_prompt is not None:
+            combined_prompt = f"Task: {task_prompt}. Subtask: {subtask_prompt}"
+        else:
+            # Fallback to task-only prompt if subtask is not available
+            combined_prompt = task_prompt
+
+        return {**data, "prompt": combined_prompt}
 
 
 @dataclasses.dataclass(frozen=True)

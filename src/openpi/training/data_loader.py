@@ -1,7 +1,9 @@
 from collections.abc import Iterator, Sequence
+import json
 import logging
 import multiprocessing
 import os
+import pathlib
 import typing
 from typing import Literal, Protocol, SupportsIndex, TypeVar
 
@@ -146,7 +148,92 @@ def create_torch_dataset(
     )
 
     if data_config.prompt_from_task:
-        dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset_meta.tasks)])
+        # Optionally load subtasks and combine with task prompts
+        if data_config.prompt_from_task_and_subtask:
+            # Load subtasks.json and create task_id mapping
+            # Subtasks are stored in meta/subtasks.json with format: {task_id: [subtask_list]}
+            # We need to map task_index (int) from dataset_meta.tasks to task_id (string) from subtasks
+            subtasks = None
+            task_id_mapping = None
+            
+            try:
+                # Search for subtasks.json in multiple locations to support different dataset structures
+                # 1. Standard location: meta/subtasks.json
+                meta_dir = dataset_meta.root / "meta"
+                subtasks_path = meta_dir / "subtasks.json"
+                
+                # 2. Check nested structure: local/*/meta/subtasks.json (common for local datasets)
+                if not subtasks_path.exists():
+                    local_dir = dataset_meta.root / "local"
+                    if local_dir.exists():
+                        for subdir in local_dir.iterdir():
+                            if subdir.is_dir():
+                                alt_path = subdir / "meta" / "subtasks.json"
+                                if alt_path.exists():
+                                    subtasks_path = alt_path
+                                    break
+                
+                # 3. Check parent directories (up to 2 levels) for meta/subtasks.json
+                if not subtasks_path.exists():
+                    current = dataset_meta.root.parent
+                    max_levels = 2  # Limit search depth to avoid going too far up
+                    for _ in range(max_levels):
+                        alt_path = current / "meta" / "subtasks.json"
+                        if alt_path.exists():
+                            subtasks_path = alt_path
+                            break
+                        parent = current.parent
+                        if parent == current:  # Reached filesystem root
+                            break
+                        current = parent
+                
+                # Load subtasks if found
+                if subtasks_path.exists():
+                    with open(subtasks_path, "r") as f:
+                        subtasks = json.load(f)
+                    
+                    # Create mapping from task_index (int) to task_id (string)
+                    # This is needed because dataset_meta.tasks uses int keys, while subtasks.json uses string keys
+                    task_id_mapping = {}
+                    if len(dataset_meta.tasks) == 1 and len(subtasks) == 1:
+                        # Single task case: map task_index 0 to the only task_id
+                        task_id_mapping[0] = list(subtasks.keys())[0]
+                    elif len(dataset_meta.tasks) == len(subtasks):
+                        # Multiple tasks: assume order matches, map by sorted keys
+                        for idx, task_id in enumerate(sorted(subtasks.keys())):
+                            task_id_mapping[idx] = task_id
+                    else:
+                        # Count mismatch: log warning and use first subtask key for all tasks
+                        logging.warning(
+                            f"Task count mismatch: {len(dataset_meta.tasks)} tasks but {len(subtasks)} subtask entries. "
+                            "Using first subtask key for all tasks."
+                        )
+                        first_task_id = list(subtasks.keys())[0]
+                        for task_idx in dataset_meta.tasks.keys():
+                            task_id_mapping[task_idx] = first_task_id
+                            
+            except Exception as e:
+                # If loading fails, fall back to task-only prompts
+                logging.warning(f"Failed to load subtasks: {e}. Falling back to task-only prompt.")
+            
+            # Apply the combined task+subtask prompt transform if subtasks were loaded successfully
+            if subtasks is not None and task_id_mapping is not None:
+                dataset = TransformedDataset(
+                    dataset,
+                    [
+                        _transforms.PromptFromLeRobotTaskAndSubtask(
+                            tasks=dataset_meta.tasks,
+                            subtasks=subtasks,
+                            task_id_mapping=task_id_mapping,
+                        )
+                    ],
+                )
+            else:
+                # Fallback to task-only prompt if subtasks are not available
+                dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset_meta.tasks)])
+        else:
+            # Use task-only prompt transform
+            dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset_meta.tasks)])
 
     return dataset
 

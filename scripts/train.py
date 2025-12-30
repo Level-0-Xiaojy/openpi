@@ -1,3 +1,8 @@
+import os
+os.environ["HF_LEROBOT_HOME"] = "/share/xuyuanfan-local/small_project/.cache/hf_home"  # TODO:Set it to yours
+os.environ['CUDA_VISIBLE_DEVICES'] = '1,5,6,7'
+os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
+
 import dataclasses
 import functools
 import logging
@@ -63,6 +68,7 @@ def init_wandb(config: _config.TrainConfig, *, resuming: bool, log_code: bool = 
             name=config.exp_name,
             config=dataclasses.asdict(config),
             project=config.project_name,
+            mode='offline'
         )
         (ckpt_dir / "wandb_id.txt").write_text(wandb.run.id)
 
@@ -224,6 +230,7 @@ def main(config: _config.TrainConfig):
     )
     data_iter = iter(data_loader)
     batch = next(data_iter)
+    # import pdb; pdb.set_trace()
     logging.info(f"Initialized data loader:\n{training_utils.array_tree_to_info(batch)}")
 
     # Log images from first batch to sanity check.

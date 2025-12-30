@@ -90,6 +90,9 @@ class DataConfig:
 
     # If true, will use the LeRobot dataset task to define the prompt.
     prompt_from_task: bool = False
+    # If true, will use both task and subtask to define the prompt in format "Task: {task}. Subtask: {subtask}".
+    # Requires prompt_from_task to be True. Subtasks are loaded from meta/subtasks.json.
+    prompt_from_task_and_subtask: bool = False
 
     # Only used for RLDS data loader (ie currently only used for DROID).
     rlds_data_dir: str | None = None
@@ -539,6 +542,7 @@ class LeRobotFrankaDataConfig(DataConfigFactory):
             data_transforms=data_transforms,
             model_transforms=model_transforms,
             action_sequence_keys=("action",),  # Dataset uses 'action' (singular), not 'actions'
+            use_quantile_norm=False,  # Use mean/std normalization instead of quantile for Franka 
         )
 
 
@@ -1066,14 +1070,16 @@ _CONFIGS = [
         data=LeRobotFrankaDataConfig(
             # Replace with your LeRobot dataset repo_id
             # For local datasets: "local/your_dataset_name" or full path
-            repo_id="local/franka_demo",
+            repo_id="scan_code_v2",
             base_config=DataConfig(
                 # Load task prompt from the 'task' field in LeRobot dataset
                 prompt_from_task=True,
+                # Include subtask in prompt format: "Task: {task}. Subtask: {subtask}"
+                prompt_from_task_and_subtask=True,
             ),
         ),
         # Load pi0.5 base model weights
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/share/xuyuanfan-local/.cache/openpi/openpi-assets/checkpoints/pi05_base/params"),
         # Training hyperparameters
         batch_size=128,
         lr_schedule=_optimizer.CosineDecaySchedule(
@@ -1085,7 +1091,7 @@ _CONFIGS = [
         optimizer=_optimizer.AdamW(clip_gradient_norm=1.0),
         ema_decay=0.999,
         num_train_steps=50_000,
-        save_interval=5_000,
+        save_interval=2_000,
         fsdp_devices=4
     ),
     TrainConfig(
