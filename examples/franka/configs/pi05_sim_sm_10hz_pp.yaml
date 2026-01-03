@@ -39,6 +39,15 @@ train:
   gpu_ids: [2, 3, 4, 5]                         # Multi-GPU training
   xla_preallocate: false
 
+
+# Inference/Validation config (for validating on dataset)
+infer:
+  checkpoint_step: "25000"                     # Checkpoint to use for inference ("latest" or specific step)
+  steps: 150                                    # Number of steps to run in trajectory
+  plot: true                                    # Generate plots
+  traj_id: 0                                    # Trajectory ID to validate
+  gpu_id: 6                                     # Single GPU for inference
+
 # Deployment config  
 deploy:
   host: "0.0.0.0"

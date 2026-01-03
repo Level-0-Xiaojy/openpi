@@ -12,6 +12,9 @@ Usage:
     # Train
     uv run examples/franka/run_task.py train --config configs/pi05_sim_sm_10hz_pp.yaml
     
+    # Infer/Validate on dataset
+    uv run examples/franka/run_task.py infer --config configs/pi05_sim_sm_10hz_pp.yaml
+    
     # Deploy
     uv run examples/franka/run_task.py deploy --config configs/pi05_sim_sm_10hz_pp.yaml
 """
@@ -94,6 +97,12 @@ def cmd_deploy(config: TaskConfig, args: argparse.Namespace) -> int:
     return run_command(cmd, args.dry_run)
 
 
+def cmd_infer(config: TaskConfig, args: argparse.Namespace) -> int:
+    """Run inference/validation on dataset."""
+    cmd = config.get_infer_cmd()
+    return run_command(cmd, args.dry_run)
+
+
 def cmd_sync(config: TaskConfig, args: argparse.Namespace) -> int:
     """Sync checkpoints and assets from remote server."""
     if not config.remote.enabled:
@@ -134,8 +143,8 @@ def main():
     )
     parser.add_argument(
         "command",
-        choices=["show", "sync", "norm_stats", "train", "deploy", "all"],
-        help="Command to run: show (print commands), sync (sync from remote), norm_stats, train, deploy, or all (norm_stats + train)"
+        choices=["show", "sync", "norm_stats", "train", "infer", "deploy", "all"],
+        help="Command to run: show (print commands), sync (sync from remote), norm_stats, train, infer (validate on dataset), deploy, or all (norm_stats + train)"
     )
     parser.add_argument(
         "--config", "-c",
@@ -165,6 +174,7 @@ def main():
         "sync": cmd_sync,
         "norm_stats": cmd_norm_stats,
         "train": cmd_train,
+        "infer": cmd_infer,
         "deploy": cmd_deploy,
         "all": cmd_all,
     }

@@ -30,15 +30,23 @@ def calc_mse_for_single_trajectory(
     action_horizon=16,
     plot = True,
     plot_state = False,
-    repo_id: str = None,
+    dataset_repo_id: str = None,
+    asset_id: str = None,
 ):
     state_joints_across_time = []
     gt_action_across_time = []
     pred_action_across_time = []
     
     data_config = config.data.create(config.assets_dirs, config.model)
-    if repo_id:
-        data_config = dataclasses.replace(data_config, repo_id=repo_id, asset_id=repo_id)
+    
+    # dataset_repo_id: the actual dataset name in lerobot cache
+    # asset_id: used to load norm stats from ./assets/{config_name}/{asset_id}/
+    if dataset_repo_id:
+        # Use dataset_repo_id as the actual dataset to load
+        data_config = dataclasses.replace(data_config, repo_id=dataset_repo_id)
+    if asset_id:
+        # Override asset_id for loading norm stats
+        data_config = dataclasses.replace(data_config, asset_id=asset_id)
         
     dataset = create_torch_dataset(data_config, config.model.action_horizon, config.model)
     action_horizon = config.model.action_horizon
@@ -53,10 +61,15 @@ def calc_mse_for_single_trajectory(
 
         if step_cnt % action_horizon == 0:
             print("inferencing at step: ", step_cnt)
+            # Convert images from normalized tensor (C, H, W) to uint8 numpy array (H, W, C)
+            # This matches the format used in server_policy.py
+            image_uint8 = get_uint8_image(data_point['image'])
+            wrist_image_uint8 = get_uint8_image(data_point['wrist_image'])
+            state_np = data_point['state'].cpu().numpy() if isinstance(data_point['state'], torch.Tensor) else data_point['state']
             obs = LeRobotFrankaEEDataConfig.generate_observations(
-                    data_point['image'], 
-                    data_point['wrist_image'], 
-                    data_point['state'], 
+                    image_uint8, 
+                    wrist_image_uint8, 
+                    state_np, 
                     data_point['task'], # you should use 'base_config=DataConfig(prompt_from_task=True,)' to using data_point['task'] during training
                 ) 
             result = policy.infer(obs)

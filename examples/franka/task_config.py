@@ -55,6 +55,17 @@ class NormStatsConfig:
 
 
 @dataclasses.dataclass
+class InferConfig:
+    """Configuration for dataset inference/validation."""
+    checkpoint_step: Optional[str] = None  # "latest", specific step, or None for auto-detection
+    steps: int = 150  # Number of steps to run in trajectory
+    plot: bool = True  # Whether to generate plots
+    traj_id: int = 0  # Trajectory ID to validate
+    # GPU settings for inference
+    gpu_id: int = 6  # Single GPU for inference
+
+
+@dataclasses.dataclass
 class RemoteConfig:
     """Configuration for syncing files from remote server."""
     enabled: bool = False
@@ -75,6 +86,7 @@ class TaskConfig:
     train: TrainConfig = dataclasses.field(default_factory=TrainConfig)
     deploy: DeployConfig = dataclasses.field(default_factory=DeployConfig)
     norm_stats: NormStatsConfig = dataclasses.field(default_factory=NormStatsConfig)
+    infer: InferConfig = dataclasses.field(default_factory=InferConfig)
     remote: RemoteConfig = dataclasses.field(default_factory=RemoteConfig)
     
     # Normalization mode: "quantile_norm", "z_score", or "auto" (auto uses model type default)
@@ -94,6 +106,7 @@ class TaskConfig:
             train=TrainConfig(**data.get('train', {})),
             deploy=DeployConfig(**data.get('deploy', {})),
             norm_stats=NormStatsConfig(**data.get('norm_stats', {})),
+            infer=InferConfig(**data.get('infer', {})),
             remote=RemoteConfig(**data.get('remote', {})),
             norm_mode=data.get('norm_mode', 'auto'),  # Load norm_mode from yaml
         )
@@ -109,6 +122,7 @@ class TaskConfig:
             'train': dataclasses.asdict(self.train),
             'deploy': dataclasses.asdict(self.deploy),
             'norm_stats': dataclasses.asdict(self.norm_stats),
+            'infer': dataclasses.asdict(self.infer),
             'remote': dataclasses.asdict(self.remote),
         }
         os.makedirs(os.path.dirname(yaml_path), exist_ok=True)
@@ -311,6 +325,42 @@ class TaskConfig:
         
         return "\n".join(commands)
     
+    def get_infer_cmd(self) -> str:
+        """Generate inference/validation command."""
+        # Determine checkpoint step
+        if self.infer.checkpoint_step:
+            if self.infer.checkpoint_step == "latest":
+                checkpoint_dir = self.get_checkpoint_dir()
+            else:
+                checkpoint_dir = f"checkpoints/{self.model.config_name}/{self.get_exp_name()}/{self.infer.checkpoint_step}"
+        else:
+            checkpoint_dir = self.get_checkpoint_dir()
+        
+        cmd = (
+            f'CUDA_VISIBLE_DEVICES={self.infer.gpu_id} python examples/franka/validate_dataset_inference.py \\\n'
+            f'    --steps {self.infer.steps} \\\n'
+            f'    --dataset_repo_id {self.data.repo_id} \\\n'
+            f'    --asset_id {self.data.repo_id} \\\n'
+            f'    --norm_mode {self.norm_mode} \\\n'
+        )
+        
+        # Add plot flag if disabled
+        if not self.infer.plot:
+            cmd += '    --no-plot \\\n'
+        
+        # Add discrete_state_input if specified
+        if self.model.discrete_state_input is not None:
+            discrete_flag = "True" if self.model.discrete_state_input else "False"
+            cmd += f'    --discrete-state-input {discrete_flag} \\\n'
+        
+        cmd += (
+            f'    policy:checkpoint \\\n'
+            f'    --policy.config {self.model.config_name} \\\n'
+            f'    --policy.dir="{checkpoint_dir}"'
+        )
+        
+        return cmd
+    
     def print_commands(self) -> None:
         """Print all commands for this task."""
         print(f"=== Task: {self.task_name} ===\n")
@@ -324,6 +374,8 @@ class TaskConfig:
         print(self.get_norm_stats_cmd())
         print("\n# 2. Train:")
         print(self.get_train_cmd())
-        print("\n# 3. Deploy:")
+        print("\n# 3. Infer/Validate on dataset:")
+        print(self.get_infer_cmd())
+        print("\n# 4. Deploy:")
         print(self.get_deploy_cmd())
         print()

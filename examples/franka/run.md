@@ -140,19 +140,23 @@ CUDA_VISIBLE_DEVICES=5 uv run scripts/serve_policy.py policy:checkpoint --policy
 
 ```bash
 # pi0 single cam
-CUDA_VISIBLE_DEVICES=7 uv run examples/franka/test/test_inference_check.py \
+CUDA_VISIBLE_DEVICES=7 uv run examples/franka/test/validate_dataset_inference.py \
     --checkpoint_dir "checkpoints/pi05_franka_single_cam/pi05_gs_franka_single_cam/29999" \
     --config_name "pi05_franka_single_cam" 
 
 # pi0 pytorch eval
-CUDA_VISIBLE_DEVICES=2 uv run examples/franka/test/test_inference_check.py \
-    --checkpoint_dir "checkpoints/pi05_franka/pi05_PP_dice_sim_manual_no_filter_pytorch/20000" \
-    --config_name "pi05_franka" \
-    --repo-id "PP_dice_sim_manual_no_filter" \
-    --steps 150
+CUDA_VISIBLE_DEVICES=6 uv run examples/franka/validate_dataset_inference.py \
+  --steps 150 \
+  --dataset_repo_id pi05_sim_sm_10hz_pp \
+  --asset_id pi05_sim_sm_10hz_pp \
+  --norm_mode z_score \
+  policy:checkpoint \
+  --policy.config pi05_franka \
+  --policy.dir="checkpoints/pi05_franka/pi05_sim_sm_10hz_pp_zscore_state/25000"
+
 
 # pi0 fast
-CUDA_VISIBLE_DEVICES=1 uv run examples/franka/test/test_inference_check.py --checkpoint_dir "checkpoints/pi0_fast_franka/fast-official_action_no_r6/15000" --config_name "pi0_fast_franka"
+CUDA_VISIBLE_DEVICES=1 uv run examples/franka/test/validate_dataset_inference.py --checkpoint_dir "checkpoints/pi0_fast_franka/fast-official_action_no_r6/15000" --config_name "pi0_fast_franka"
 
 ```
 
@@ -294,6 +298,10 @@ CONFIG_PATH="examples/franka/configs/pi05_real_sm_10hz_pp_zscore.yaml"
 CONFIG_PATH="examples/franka/configs/pi05_real_sm_10hz_pp_zscore_state.yaml"
 CONFIG_PATH="examples/franka/configs/pi05_real_sm_10hz_pp_zscore_state_single.yaml"
 
+CONFIG_PATH="examples/franka/configs/pi05_real_sm_10hz_overfit_zscore_state.yaml"
+CONFIG_PATH="examples/franka/configs/pi05_real_sm_10hz_overfit_zscore_state_single.yaml"
+
+
 CONFIG_PATH="examples/franka/configs/pi05_sim_sm_10hz_pp.yaml"
 CONFIG_PATH="examples/franka/configs/pi05_sim_sm_10hz_pp_zscore.yaml"
 CONFIG_PATH="examples/franka/configs/pi05_sim_sm_10hz_pp_zscore_state.yaml"
@@ -306,6 +314,9 @@ uv run examples/franka/run_task.py norm_stats --config $CONFIG_PATH
 
 # Train only  
 uv run examples/franka/run_task.py train --config $CONFIG_PATH
+
+# Infer/Validate on dataset (after training)
+uv run examples/franka/run_task.py infer --config $CONFIG_PATH
 
 # Run full pipeline (norm_stats + train)
 uv run examples/franka/run_task.py all --config $CONFIG_PATH
