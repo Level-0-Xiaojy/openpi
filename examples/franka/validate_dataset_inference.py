@@ -54,7 +54,7 @@ class Args:
     discrete_state_input: bool | None = None
 
     # Normalization mode: "auto", "quantile_norm", "z_score"
-    norm_mode: str = "z_score"
+    norm_mode: str = "auto"
 
     # Specifies how to load the policy.
     policy: Checkpoint | Default = dataclasses.field(default_factory=Default)
