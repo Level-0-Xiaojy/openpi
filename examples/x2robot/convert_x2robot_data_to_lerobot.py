@@ -14,7 +14,7 @@ import tyro
 
 
 # Configuration
-REPO_NAME = "microwave"  # TODO: Change to your dataset name
+REPO_NAME = "microwave_1218_sm2sm"  # TODO: Change to your dataset name
 RAW_DATASET_PATHS = [
     './datasets/x2robot/microwave',
     # Add more paths as needed
@@ -34,6 +34,10 @@ ACTION_KEYS = [
     'follow_right_position',
     'follow_right_rotation',
     'follow_right_gripper',
+    'master_left_position',
+    'master_left_rotation', 
+    'master_right_position',
+    'master_right_rotation',
 ]
 
 
@@ -160,12 +164,12 @@ def main(
             },
             "state": {
                 "dtype": "float32",
-                "shape": (14,),
+                "shape": (26,),
                 "names": ["state"],
             },
             "actions": {
                 "dtype": "float32",
-                "shape": (14,),
+                "shape": (26,),
                 "names": ["actions"],
             },
         },

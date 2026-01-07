@@ -85,7 +85,7 @@ class ArxInputs(transforms.DataTransformFn):
 @dataclasses.dataclass(frozen=True)
 class ArxOutputs(transforms.DataTransformFn):
     """Outputs for the ARX policy."""
-
+    action_dim: int = 14
     def __call__(self, data: dict) -> dict:
-        actions = np.asarray(data["actions"][:, :14])
+        actions = np.asarray(data["actions"][:, :self.action_dim])
         return {"actions": actions}

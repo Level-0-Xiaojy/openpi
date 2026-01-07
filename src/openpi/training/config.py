@@ -229,6 +229,7 @@ class SimpleDataConfig(DataConfigFactory):
 @dataclasses.dataclass(frozen=True)
 class LeRobotX2robotDataConfig(DataConfigFactory):
     use_delta_actions: bool = False
+    action_dim: int = 14
 
     repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
         default=_transforms.Group(
@@ -252,9 +253,10 @@ class LeRobotX2robotDataConfig(DataConfigFactory):
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        print('action dim:', model_config.action_dim)
         data_transforms = _transforms.Group(
             inputs=[arx_policy.ArxInputs(action_dim=model_config.action_dim, model_type=model_config.model_type)],
-            outputs=[arx_policy.ArxOutputs()],
+            outputs=[arx_policy.ArxOutputs(action_dim=self.action_dim)],
         )
         if self.use_delta_actions:
             delta_action_mask = _transforms.make_bool_mask(6, -1, 6, -1)
@@ -1051,6 +1053,19 @@ _CONFIGS = [
             paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
         ).get_freeze_filter(),
         ema_decay=None,
+    ),
+    TrainConfig(
+        name="microwave_1218_sm2sm",
+        model=pi0_config.Pi0Config(),
+        data=LeRobotX2robotDataConfig(
+            repo_id="microwave_1218_sm2sm", # dataset repo
+            action_dim=26,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="microwave_1218_sm2sm",
+        batch_size=8,
+        num_train_steps=30_000,
     ),
     # RoboArena & PolaRiS configs.
     *roboarena_config.get_roboarena_configs(),
