@@ -221,6 +221,7 @@ def main(config: _config.TrainConfig):
         config,
         sharding=data_sharding,
         shuffle=True,
+        split="train",
     )
     data_iter = iter(data_loader)
     batch = next(data_iter)

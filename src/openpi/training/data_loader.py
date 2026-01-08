@@ -50,6 +50,76 @@ class DataLoader(Protocol[T_co]):
         raise NotImplementedError("Subclasses of DataLoader should implement __iter__.")
 
 
+class FilteredLeRobotDataset(lerobot_dataset.LeRobotDataset):
+    """Fixed LeRobotDataset that properly handles episode filtering.
+    
+    LeRobot has a bug where when using episodes=[131, 19, 81], the episode_data_index
+    is correctly created with N entries (one per filtered episode), but hf_dataset's 
+    episode_index column retains original values (e.g., 131, 19, 81). 
+    The _get_query_indices method then tries to access episode_data_index["from"][131] 
+    which is out of bounds.
+    
+    This subclass fixes the bug by maintaining an episode index mapping based on
+    the actual order of episodes in the filtered dataset.
+    """
+    
+    def __init__(self, *args, episodes: list[int] | None = None, **kwargs):
+        # Store the episodes list before calling parent __init__
+        self._filtered_episodes = episodes
+        self._episode_index_map: dict[int, int] | None = None
+        
+        super().__init__(*args, episodes=episodes, **kwargs)
+        
+        # Build the episode index mapping after parent init
+        # IMPORTANT: Map based on actual order in episode_data_index, not sorted order
+        if episodes is not None and len(self.episode_data_index["from"]) > 0:
+            self._episode_index_map = {}
+            for new_idx in range(len(self.episode_data_index["from"])):
+                # Get the first sample index for this episode in episode_data_index
+                start_idx = self.episode_data_index["from"][new_idx].item()
+                # Get the original episode index from hf_dataset
+                orig_ep_idx = self.hf_dataset[start_idx]["episode_index"]
+                if hasattr(orig_ep_idx, 'item'):
+                    orig_ep_idx = orig_ep_idx.item()
+                self._episode_index_map[orig_ep_idx] = new_idx
+    
+    def _get_query_indices(self, idx: int, ep_idx: int) -> tuple[dict[str, list[int | bool]]]:
+        """Override to fix episode index mapping bug.
+        
+        ep_idx here is the ORIGINAL episode index from hf_dataset.
+        We need to remap it to access episode_data_index correctly.
+        """
+        # Remap the episode index if we're using filtered episodes
+        remapped_ep_idx = ep_idx
+        if self._episode_index_map is not None:
+            remapped_ep_idx = self._episode_index_map.get(ep_idx, ep_idx)
+        
+        # Now use remapped index to access episode_data_index
+        ep_start = self.episode_data_index["from"][remapped_ep_idx]
+        ep_end = self.episode_data_index["to"][remapped_ep_idx]
+        
+        query_indices = {
+            key: [max(ep_start.item(), min(ep_end.item() - 1, idx + delta)) for delta in delta_idx]
+            for key, delta_idx in self.delta_indices.items()
+        }
+        padding = {
+            f"{key}_is_pad": torch.BoolTensor(
+                [(idx + delta < ep_start.item()) | (idx + delta >= ep_end.item()) for delta in delta_idx]
+            )
+            for key, delta_idx in self.delta_indices.items()
+        }
+        return query_indices, padding
+    
+    def _query_videos(self, query_timestamps: dict[str, list[float]], ep_idx: int):
+        """Override to use original episode index for video file paths.
+        
+        ep_idx here is the ORIGINAL episode index - we should NOT remap it
+        because video files are named using the original episode indices.
+        """
+        # Do NOT remap ep_idx here - video files use original episode indices
+        return super()._query_videos(query_timestamps, ep_idx)
+
+
 class TransformedDataset(Dataset[T_co]):
     def __init__(self, dataset: Dataset, transforms: Sequence[_transforms.DataTransformFn]):
         self._dataset = dataset
@@ -128,9 +198,23 @@ class FakeDataset(Dataset):
 
 
 def create_torch_dataset(
-    data_config: _config.DataConfig, action_horizon: int, model_config: _model.BaseModelConfig
+    data_config: _config.DataConfig,
+    action_horizon: int,
+    model_config: _model.BaseModelConfig,
+    split: Literal["train", "val"] | None = None,
+    val_ratio: float = 0.1,
+    split_seed: int = 42,
 ) -> Dataset:
-    """Create a dataset for training."""
+    """Create a dataset for training.
+    
+    Args:
+        data_config: The data configuration.
+        action_horizon: The action horizon.
+        model_config: The model configuration.
+        split: If "train" or "val", only load that split. If None, load all data.
+        val_ratio: Ratio of validation data (default 0.1 means 10% validation).
+        split_seed: Random seed for reproducible train/val splitting.
+    """
     repo_id = data_config.repo_id
     if repo_id is None:
         raise ValueError("Repo ID is not set. Cannot create dataset.")
@@ -138,12 +222,44 @@ def create_torch_dataset(
         return FakeDataset(model_config, num_samples=1024)
 
     dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
-    dataset = lerobot_dataset.LeRobotDataset(
-        data_config.repo_id,
-        delta_timestamps={
-            key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
-        },
-    )
+    
+    # Determine which episodes to load based on split
+    episodes = None
+    if split is not None:
+        # Use metadata to get total number of episodes (no need to load full dataset)
+        total_episodes = dataset_meta.total_episodes
+        all_episode_indices = np.arange(total_episodes)
+        
+        # Shuffle with fixed seed for reproducibility
+        rng = np.random.RandomState(split_seed)
+        rng.shuffle(all_episode_indices)
+        
+        # Split into train/val
+        val_size = int(total_episodes * val_ratio)
+        if split == "val":
+            episodes = all_episode_indices[:val_size].tolist()
+            logging.info(f"Loading validation split: {len(episodes)} episodes out of {total_episodes}")
+        else:  # train
+            episodes = all_episode_indices[val_size:].tolist()
+            logging.info(f"Loading training split: {len(episodes)} episodes out of {total_episodes}")
+    
+    # Use FilteredLeRobotDataset only when episodes are filtered (split is not None)
+    # Otherwise use original LeRobotDataset to avoid any potential issues
+    if episodes is not None:
+        dataset = FilteredLeRobotDataset(
+            data_config.repo_id,
+            delta_timestamps={
+                key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
+            },
+            episodes=episodes,
+        )
+    else:
+        dataset = lerobot_dataset.LeRobotDataset(
+            data_config.repo_id,
+            delta_timestamps={
+                key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
+            },
+        )
 
     if data_config.prompt_from_task:
         dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset_meta.tasks)])
@@ -228,6 +344,9 @@ def create_data_loader(
     num_batches: int | None = None,
     skip_norm_stats: bool = False,
     framework: Literal["jax", "pytorch"] = "jax",
+    split: Literal["train", "val"] | None = None,
+    val_ratio: float = 0.1,
+    split_seed: int = 42,
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
     """Create a data loader for training.
 
@@ -238,6 +357,9 @@ def create_data_loader(
         num_batches: Determines the number of batches to return.
         skip_norm_stats: Whether to skip data normalization.
         framework: The framework to use ("jax" or "pytorch").
+        split: If "train" or "val", only load that split. If None, load all data.
+        val_ratio: Ratio of validation data (default 0.1 means 10% validation).
+        split_seed: Random seed for reproducible train/val splitting.
     """
     data_config = config.data.create(config.assets_dirs, config.model)
     logging.info(f"data_config: {data_config}")
@@ -265,6 +387,9 @@ def create_data_loader(
         seed=config.seed,
         skip_norm_stats=skip_norm_stats,
         framework=framework,
+        split=split,
+        val_ratio=val_ratio,
+        split_seed=split_seed,
     )
 
 
@@ -281,6 +406,9 @@ def create_torch_data_loader(
     num_workers: int = 0,
     seed: int = 0,
     framework: str = "jax",
+    split: Literal["train", "val"] | None = None,
+    val_ratio: float = 0.1,
+    split_seed: int = 42,
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
     """Create a data loader for training.
 
@@ -298,8 +426,11 @@ def create_torch_data_loader(
         num_workers: The number of worker processes to use. If zero, the data loader will
             execute in the main process.
         seed: The seed to use for shuffling the data.
+        split: If "train" or "val", only load that split. If None, load all data.
+        val_ratio: Ratio of validation data (default 0.1 means 10% validation).
+        split_seed: Random seed for reproducible train/val splitting.
     """
-    dataset = create_torch_dataset(data_config, action_horizon, model_config)
+    dataset = create_torch_dataset(data_config, action_horizon, model_config, split=split, val_ratio=val_ratio, split_seed=split_seed)
     dataset = transform_dataset(dataset, data_config, skip_norm_stats=skip_norm_stats)
 
     # Use TorchDataLoader for both frameworks
