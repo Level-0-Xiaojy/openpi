@@ -575,6 +575,10 @@ class TrainConfig:
     # If true, will enable wandb logging.
     wandb_enabled: bool = True
 
+    # If true, will save full training state (including optimizer state and EMA params).
+    # If false, will only save model parameters to reduce checkpoint size.
+    save_full_state: bool = True
+
     # Used to pass metadata to the policy server.
     policy_metadata: dict[str, Any] | None = None
 
@@ -1038,6 +1042,7 @@ _CONFIGS = [
         exp_name="microwave_1218",
         batch_size=8,
         num_train_steps=30_000,
+        save_full_state=False,
     ),
     TrainConfig(
         name="microwave_1218_lora",
