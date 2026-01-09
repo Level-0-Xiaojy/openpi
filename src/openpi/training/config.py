@@ -1071,6 +1071,23 @@ _CONFIGS = [
         exp_name="microwave_1218_sm2sm",
         batch_size=8,
         num_train_steps=30_000,
+        save_interval=10_000,
+        save_full_state=False,
+    ),
+    TrainConfig(
+        name="plugin_0107_sm2sm",
+        model=pi0_config.Pi0Config(),
+        data=LeRobotX2robotDataConfig(
+            repo_id="plugin_0107_sm2sm", # dataset repo
+            action_dim=28,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="plugin_0107_sm2sm",
+        batch_size=8,
+        num_train_steps=30_000,
+        save_interval=10_000,
+        save_full_state=False,
     ),
     # RoboArena & PolaRiS configs.
     *roboarena_config.get_roboarena_configs(),

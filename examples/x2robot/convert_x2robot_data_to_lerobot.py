@@ -11,12 +11,13 @@ import tqdm
 from pathlib import Path
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset, HF_LEROBOT_HOME
 import tyro
+import time
 
 
 # Configuration
-REPO_NAME = "microwave_1218_sm2sm"  # TODO: Change to your dataset name
+REPO_NAME = "plugin_0107_test"  # TODO: Change to your dataset name
 RAW_DATASET_PATHS = [
-    './datasets/x2robot/microwave',
+    './datasets/x2robot/plugin_0107/',  # Add more paths as needed
     # Add more paths as needed
 ]
 
@@ -35,9 +36,11 @@ ACTION_KEYS = [
     'follow_right_rotation',
     'follow_right_gripper',
     'master_left_position',
-    'master_left_rotation', 
+    'master_left_rotation',
+    'master_left_gripper', 
     'master_right_position',
     'master_right_rotation',
+    'master_right_gripper',
 ]
 
 
@@ -56,6 +59,7 @@ def decode_video(video_path: str) -> np.ndarray:
 
 def process_episode(episode_path: str, low_resolution: bool) -> tuple[np.ndarray, dict[str, np.ndarray]]:
     # Load actions from JSON
+    t0 = time.time()
     episode_name = os.path.basename(episode_path)
     json_path = os.path.join(episode_path, f"{episode_name}.json")
     
@@ -81,11 +85,16 @@ def process_episode(episode_path: str, low_resolution: bool) -> tuple[np.ndarray
     # Concatenate into state and action arrays (T, 14)
     state_action = np.concatenate([actions[key] for key in ACTION_KEYS], axis=1)
     
+    t1 = time.time()
+    print(f"  JSON loading & parsing: {t1-t0:.3f}s")
+    
     # Load videos (resize to low resolution if requested)
     videos = {}
     for view_name, filename in FILE_CAMERA_MAPPING.items():
         video_path = os.path.join(episode_path, filename)
+        t_vid_start = time.time()
         frames = decode_video(video_path)  # (T, C, H, W), uint8
+        t_vid_decode = time.time()
 
         if low_resolution:
             # Resize to 240x320 using bilinear interpolation
@@ -95,6 +104,8 @@ def process_episode(episode_path: str, low_resolution: bool) -> tuple[np.ndarray
 
         frames = einops.rearrange(frames, 't c h w -> t h w c')  # (T, H, W, C)
         videos[view_name] = frames
+        t_vid_end = time.time()
+        print(f"  Video {view_name}: decode={t_vid_decode-t_vid_start:.3f}s, resize={t_vid_end-t_vid_decode:.3f}s")
     
     return state_action, videos
 
@@ -124,6 +135,7 @@ def find_episodes(raw_paths: list[str]) -> list[str]:
 def main(
         push_to_hub: bool = False,
         debug: bool = False,
+        debug_episodes: int = 3,
         low_resolution: bool = True,
 ):
     """
@@ -131,6 +143,8 @@ def main(
     
     Args:
         push_to_hub: Whether to push the dataset to Hugging Face Hub
+        debug: Run in debug mode (process limited episodes)
+        debug_episodes: Number of episodes to process in debug mode
     """
     print(f"HF_LEROBOT_HOME: {HF_LEROBOT_HOME}")
     
@@ -164,12 +178,12 @@ def main(
             },
             "state": {
                 "dtype": "float32",
-                "shape": (26,),
+                "shape": (28,),
                 "names": ["state"],
             },
             "actions": {
                 "dtype": "float32",
-                "shape": (26,),
+                "shape": (28,),
                 "names": ["actions"],
             },
         },
@@ -181,15 +195,20 @@ def main(
     episode_paths = find_episodes(RAW_DATASET_PATHS)
     print(f"Found {len(episode_paths)} episodes")
     if debug:
-        episode_paths = episode_paths[:3]
-        print("Debug mode: only processing first 3 episodes")
+        episode_paths = episode_paths[:debug_episodes]
+        print(f"Debug mode: only processing first {debug_episodes} episodes")
     
     # Process each episode
     for episode_path in tqdm.tqdm(episode_paths, desc="Processing episodes"):
         try:
+            t_episode_start = time.time()
+            print(f"\nProcessing {os.path.basename(episode_path)}:")
             state_action, videos = process_episode(episode_path, low_resolution)
+            t_process_done = time.time()
+            print(f"  Episode processing: {t_process_done-t_episode_start:.3f}s")
             
             # Add frames to dataset
+            t_add_start = time.time()
             num_frames = len(state_action)
             for i in range(num_frames - 1):
                 dataset.add_frame({
@@ -200,8 +219,14 @@ def main(
                     "actions": state_action[i + 1],  # Next state as action
                     "task": '',  # Empty task description
                 })
+            t_add_done = time.time()
+            print(f"  add_frame ({num_frames} frames): {t_add_done-t_add_start:.3f}s")
             
+            t_save_start = time.time()
             dataset.save_episode()
+            t_save_done = time.time()
+            print(f"  save_episode: {t_save_done-t_save_start:.3f}s")
+            print(f"  Total episode time: {t_save_done-t_episode_start:.3f}s")
             
         except Exception as e:
             print(f"Error processing {episode_path}: {e}")
