@@ -38,8 +38,11 @@ STATE_ACTION_KEYS = [
     "follow_right_gripper",
     'master_left_position',
     'master_left_rotation', 
+    'master_left_gripper',
     'master_right_position',
     'master_right_rotation',
+    "master_right_gripper",
+    
 ]
 
 FILE_CAME_MAPPING = {

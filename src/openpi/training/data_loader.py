@@ -120,6 +120,49 @@ class FilteredLeRobotDataset(lerobot_dataset.LeRobotDataset):
         return super()._query_videos(query_timestamps, ep_idx)
 
 
+class MultiDataset(Dataset[T_co]):
+    """Dataset that combines multiple LeRobot datasets."""
+    
+    def __init__(self, datasets: Sequence[Dataset[T_co]]):
+        self._datasets = list(datasets)
+        self._cumulative_lengths = self._compute_cumulative_lengths()
+        
+    def _compute_cumulative_lengths(self) -> list[int]:
+        """Compute cumulative lengths for efficient indexing."""
+        cumulative_lengths = []
+        total = 0
+        for dataset in self._datasets:
+            total += len(dataset)
+            cumulative_lengths.append(total)
+        return cumulative_lengths
+        
+    def __getitem__(self, index: SupportsIndex) -> T_co:
+        idx = index.__index__()
+        if idx < 0:
+            idx += len(self)
+        if idx < 0 or idx >= len(self):
+            raise IndexError(f"Index {index} is out of range for dataset of length {len(self)}")
+            
+        # Find which dataset contains this index
+        dataset_idx = 0
+        for i, cumulative_length in enumerate(self._cumulative_lengths):
+            if idx < cumulative_length:
+                dataset_idx = i
+                break
+                
+        # Calculate the offset within the selected dataset
+        offset = idx
+        if dataset_idx > 0:
+            offset = idx - self._cumulative_lengths[dataset_idx - 1]
+            
+        return self._datasets[dataset_idx][offset]
+        
+    def __len__(self) -> int:
+        if not self._cumulative_lengths:
+            return 0
+        return self._cumulative_lengths[-1]
+
+
 class TransformedDataset(Dataset[T_co]):
     def __init__(self, dataset: Dataset, transforms: Sequence[_transforms.DataTransformFn]):
         self._dataset = dataset
@@ -220,51 +263,122 @@ def create_torch_dataset(
         raise ValueError("Repo ID is not set. Cannot create dataset.")
     if repo_id == "fake":
         return FakeDataset(model_config, num_samples=1024)
-
-    dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
     
-    # Determine which episodes to load based on split
-    episodes = None
-    if split is not None:
-        # Use metadata to get total number of episodes (no need to load full dataset)
-        total_episodes = dataset_meta.total_episodes
-        all_episode_indices = np.arange(total_episodes)
-        
-        # Shuffle with fixed seed for reproducibility
-        rng = np.random.RandomState(split_seed)
-        rng.shuffle(all_episode_indices)
-        
-        # Split into train/val
-        val_size = int(total_episodes * val_ratio)
-        if split == "val":
-            episodes = all_episode_indices[:val_size].tolist()
-            logging.info(f"Loading validation split: {len(episodes)} episodes out of {total_episodes}")
-        else:  # train
-            episodes = all_episode_indices[val_size:].tolist()
-            logging.info(f"Loading training split: {len(episodes)} episodes out of {total_episodes}")
+    # Parse comma-separated repo_ids
+    repo_ids = [repo_id.strip() for repo_id in repo_id.split(",") if repo_id.strip()]
     
-    # Use FilteredLeRobotDataset only when episodes are filtered (split is not None)
-    # Otherwise use original LeRobotDataset to avoid any potential issues
-    if episodes is not None:
-        dataset = FilteredLeRobotDataset(
-            data_config.repo_id,
-            delta_timestamps={
-                key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
-            },
-            episodes=episodes,
-        )
-    else:
-        dataset = lerobot_dataset.LeRobotDataset(
-            data_config.repo_id,
-            delta_timestamps={
-                key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
-            },
-        )
+    # If only one dataset, use the original logic for backward compatibility
+    if len(repo_ids) == 1:
+        dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
+        
+        # Determine which episodes to load based on split
+        episodes = None
+        if split is not None:
+            # Use metadata to get total number of episodes (no need to load full dataset)
+            total_episodes = dataset_meta.total_episodes
+            all_episode_indices = np.arange(total_episodes)
+            
+            # Shuffle with fixed seed for reproducibility
+            rng = np.random.RandomState(split_seed)
+            rng.shuffle(all_episode_indices)
+            
+            # Split into train/val
+            val_size = int(total_episodes * val_ratio)
+            if split == "val":
+                episodes = all_episode_indices[:val_size].tolist()
+                logging.info(f"Loading validation split: {len(episodes)} episodes out of {total_episodes}")
+            else:  # train
+                episodes = all_episode_indices[val_size:].tolist()
+                logging.info(f"Loading training split: {len(episodes)} episodes out of {total_episodes}")
+        
+        # Use FilteredLeRobotDataset only when episodes are filtered (split is not None)
+        # Otherwise use original LeRobotDataset to avoid any potential issues
+        if episodes is not None:
+            dataset = FilteredLeRobotDataset(
+                data_config.repo_id,
+                delta_timestamps={
+                    key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
+                },
+                episodes=episodes,
+            )
+        else:
+            dataset = lerobot_dataset.LeRobotDataset(
+                data_config.repo_id,
+                delta_timestamps={
+                    key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
+                },
+            )
 
-    if data_config.prompt_from_task:
-        dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset_meta.tasks)])
+        if data_config.prompt_from_task:
+            dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset_meta.tasks)])
 
-    return dataset
+        return dataset
+    
+    # Multiple datasets case
+    datasets = []
+    all_tasks = set()
+    total_episodes_all = 0
+    
+    logging.info(f"Loading multiple datasets: {repo_ids}")
+    
+    for i, repo_id in enumerate(repo_ids):
+        dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
+        all_tasks.update(dataset_meta.tasks)
+        total_episodes_all += dataset_meta.total_episodes
+        
+        # Determine which episodes to load based on split
+        episodes = None
+        if split is not None:
+            # Use metadata to get total number of episodes for this dataset
+            total_episodes = dataset_meta.total_episodes
+            all_episode_indices = np.arange(total_episodes)
+            
+            # Shuffle with fixed seed for reproducibility (different seed per dataset)
+            rng = np.random.RandomState(split_seed + i)
+            rng.shuffle(all_episode_indices)
+            
+            # Split into train/val
+            val_size = max(1, int(total_episodes * val_ratio))
+            if split == "val":
+                episodes = all_episode_indices[:val_size].tolist()
+                logging.info(f"Loading validation split for {repo_id}: {len(episodes)} episodes out of {total_episodes}")
+            else:  # train
+                episodes = all_episode_indices[val_size:].tolist()
+                logging.info(f"Loading training split for {repo_id}: {len(episodes)} episodes out of {total_episodes}")
+        else:
+            logging.info(f"Loading full dataset for {repo_id}: {dataset_meta.total_episodes} episodes")
+            
+        # Create dataset
+        if episodes is not None:
+            dataset = FilteredLeRobotDataset(
+                repo_id,
+                delta_timestamps={
+                    key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
+                },
+                episodes=episodes,
+            )
+        else:
+            dataset = lerobot_dataset.LeRobotDataset(
+                repo_id,
+                delta_timestamps={
+                    key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
+                },
+            )
+        
+        if data_config.prompt_from_task:
+            dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset_meta.tasks)])
+            
+        datasets.append(dataset)
+    
+    # Combine all datasets
+    combined_dataset = MultiDataset(datasets)
+    logging.info(f"Combined {len(repo_ids)} datasets with total {len(combined_dataset)} samples")
+    
+    # If we have multiple datasets and prompt_from_task, log the tasks
+    if data_config.prompt_from_task and len(datasets) > 1:
+        logging.info(f"Combined dataset uses tasks from all datasets: {sorted(all_tasks)}")
+    
+    return combined_dataset
 
 
 def create_rlds_dataset(

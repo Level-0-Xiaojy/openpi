@@ -32,9 +32,9 @@ os.environ['SVT_LOG'] = '0'
 
 
 # Configuration
-REPO_NAME = "plugin_0107_test_v4"
+REPO_NAME = "plugin_0110_sm2sm"
 RAW_DATASET_PATHS = [
-    './datasets/x2robot/plugin_0107/',
+    './datasets/x2robot/plugin_0110/',
 ]
 
 FILE_CAMERA_MAPPING = {

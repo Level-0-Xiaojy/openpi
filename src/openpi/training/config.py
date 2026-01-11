@@ -64,7 +64,7 @@ class AssetsConfig:
 
 @dataclasses.dataclass(frozen=True)
 class DataConfig:
-    # LeRobot repo id. If None, fake data will be created.
+    # LeRobot repo id. If None, fake data will be created. Support comma-separated multiple repos.
     repo_id: str | None = None
     # Directory within the assets directory containing the data assets.
     asset_id: str | None = None
@@ -166,7 +166,7 @@ class ModelTransformFactory(GroupFactory):
 
 @dataclasses.dataclass(frozen=True)
 class DataConfigFactory(abc.ABC):
-    # The LeRobot repo id.
+    # The LeRobot repo id. Support comma-separated multiple repos.
     repo_id: str = tyro.MISSING
     # Determines how the assets will be loaded.
     assets: AssetsConfig = dataclasses.field(default_factory=AssetsConfig)
@@ -179,7 +179,7 @@ class DataConfigFactory(abc.ABC):
 
     def create_base_config(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         repo_id = self.repo_id if self.repo_id is not tyro.MISSING else None
-        asset_id = self.assets.asset_id or repo_id
+        asset_id = self.assets.asset_id or repo_id.replace(',', '_') if repo_id is not None else None
         return dataclasses.replace(
             self.base_config or DataConfig(),
             repo_id=repo_id,
@@ -1085,6 +1085,21 @@ _CONFIGS = [
         
         exp_name="plugin_0107_sm2sm",
         batch_size=8,
+        num_train_steps=30_000,
+        save_interval=10_000,
+        save_full_state=False,
+    ),
+    TrainConfig(
+        name="plugin_combined_sm2sm",
+        model=pi0_config.Pi0Config(),
+        data=LeRobotX2robotDataConfig(
+            repo_id="plugin_1227_sm2sm,plugin_0107_sm2sm,plugin_0110_sm2sm", # Multiple datasets separated by comma
+            action_dim=28,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="plugin_1227+0107+0110_sm2sm",
+        batch_size=16,
         num_train_steps=30_000,
         save_interval=10_000,
         save_full_state=False,

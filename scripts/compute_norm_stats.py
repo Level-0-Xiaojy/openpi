@@ -108,8 +108,16 @@ def main(config_name: str, max_frames: int | None = None):
 
     norm_stats = {key: stats.get_statistics() for key, stats in stats.items()}
 
-    output_path = config.assets_dirs / data_config.repo_id
+    # For multi-dataset, concatenate dataset names with underscores
+    repo_ids = [repo_id.strip() for repo_id in data_config.repo_id.split(",") if repo_id.strip()]
+    if len(repo_ids) > 1:
+        asset_name = "_".join(repo_ids)
+    else:
+        asset_name = data_config.repo_id
+
+    output_path = config.assets_dirs / asset_name
     print(f"Writing stats to: {output_path}")
+    print(f"Datasets used: {repo_ids}")
     normalize.save(output_path, norm_stats)
 
 
