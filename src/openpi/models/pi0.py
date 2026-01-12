@@ -149,12 +149,16 @@ class Pi0(_model.BaseModel):
         ar_mask = []
         tokens = []
         if not self.pi05:
-            # add a single state token
-            state_token = self.state_proj(obs.state)[:, None, :]
-            tokens.append(state_token)
-            input_mask.append(jnp.ones((obs.state.shape[0], 1), dtype=jnp.bool_))
-            # image/language inputs do not attend to state or actions
-            ar_mask += [True]
+            # State: (batch, state_dim) or (batch, seq_len, state_dim)
+            state = obs.state
+            if state.ndim == 2:
+                state = state[:, None, :]
+            num_state_tokens = state.shape[1]
+            
+            state_tokens = self.state_proj(state)
+            tokens.append(state_tokens)
+            input_mask.append(jnp.ones((state.shape[0], num_state_tokens), dtype=jnp.bool_))
+            ar_mask += [True] + ([False] * (num_state_tokens - 1))
 
         action_tokens = self.action_in_proj(noisy_actions)
         # embed timestep using sine-cosine positional encoding with sensitivity in the range [0, 1]

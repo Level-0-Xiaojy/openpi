@@ -264,6 +264,18 @@ def create_torch_dataset(
     if repo_id == "fake":
         return FakeDataset(model_config, num_samples=1024)
     
+    state_history_size = getattr(data_config, 'state_history_size', 0)
+    state_future_size = getattr(data_config, 'state_future_size', 0)
+    
+    def _build_delta_timestamps(fps: float) -> dict[str, list[float]]:
+        delta_ts = {
+            key: [t / fps for t in range(action_horizon)] 
+            for key in data_config.action_sequence_keys
+        }
+        if state_history_size > 0 or state_future_size > 0:
+            delta_ts['state'] = [t / fps for t in range(-state_history_size, state_future_size + 1)]
+        return delta_ts
+    
     # Parse comma-separated repo_ids
     repo_ids = [repo_id.strip() for repo_id in repo_id.split(",") if repo_id.strip()]
     
@@ -296,17 +308,13 @@ def create_torch_dataset(
         if episodes is not None:
             dataset = FilteredLeRobotDataset(
                 data_config.repo_id,
-                delta_timestamps={
-                    key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
-                },
+                delta_timestamps=_build_delta_timestamps(dataset_meta.fps),
                 episodes=episodes,
             )
         else:
             dataset = lerobot_dataset.LeRobotDataset(
                 data_config.repo_id,
-                delta_timestamps={
-                    key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
-                },
+                delta_timestamps=_build_delta_timestamps(dataset_meta.fps),
             )
 
         if data_config.prompt_from_task:
@@ -352,17 +360,13 @@ def create_torch_dataset(
         if episodes is not None:
             dataset = FilteredLeRobotDataset(
                 repo_id,
-                delta_timestamps={
-                    key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
-                },
+                delta_timestamps=_build_delta_timestamps(dataset_meta.fps),
                 episodes=episodes,
             )
         else:
             dataset = lerobot_dataset.LeRobotDataset(
                 repo_id,
-                delta_timestamps={
-                    key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
-                },
+                delta_timestamps=_build_delta_timestamps(dataset_meta.fps),
             )
         
         if data_config.prompt_from_task:

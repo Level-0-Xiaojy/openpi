@@ -91,8 +91,8 @@ class Observation(Generic[ArrayT]):
     images: dict[str, at.Float[ArrayT, "*b h w c"]]
     # Image masks, with same keys as images.
     image_masks: dict[str, at.Bool[ArrayT, "*b"]]
-    # Low-dimensional robot state.
-    state: at.Float[ArrayT, "*b s"]
+    # Low-dimensional robot state: (batch, state_dim) or (batch, seq_len, state_dim)
+    state: at.Float[ArrayT, "..."]
 
     # Tokenized prompt.
     tokenized_prompt: at.Int[ArrayT, "*b l"] | None = None
@@ -156,7 +156,7 @@ def preprocess_observation(
     if not set(image_keys).issubset(observation.images):
         raise ValueError(f"images dict missing keys: expected {image_keys}, got {list(observation.images)}")
 
-    batch_shape = observation.state.shape[:-1]
+    batch_shape = observation.state.shape[:1]
 
     out_images = {}
     for key in image_keys:

@@ -87,9 +87,10 @@ class DataConfig:
     # sequence is defined by the `action_horizon` field in the model config. This should be adjusted if your
     # LeRobot dataset is using different keys to represent the action.
     action_sequence_keys: Sequence[str] = ("actions",)
-
     # If true, will use the LeRobot dataset task to define the prompt.
     prompt_from_task: bool = False
+    state_history_size: int = 0
+    state_future_size: int = 0
 
     # Only used for RLDS data loader (ie currently only used for DROID).
     rlds_data_dir: str | None = None
@@ -108,35 +109,27 @@ class GroupFactory(Protocol):
 class ModelTransformFactory(GroupFactory):
     """Creates model transforms for standard pi0 models."""
 
-    # If provided, will determine the default prompt that be used by the model.
     default_prompt: str | None = None
 
     def __call__(self, model_config: _model.BaseModelConfig) -> _transforms.Group:
         match model_config.model_type:
-            case _model.ModelType.PI0:
-                return _transforms.Group(
-                    inputs=[
-                        _transforms.InjectDefaultPrompt(self.default_prompt),
-                        _transforms.ResizeImages(224, 224),
-                        _transforms.TokenizePrompt(
-                            _tokenizer.PaligemmaTokenizer(model_config.max_token_len),
-                        ),
-                        _transforms.PadStatesAndActions(model_config.action_dim),
-                    ],
-                )
-            case _model.ModelType.PI05:
+            case _model.ModelType.PI0 | _model.ModelType.PI05:
                 assert isinstance(model_config, pi0_config.Pi0Config)
-                return _transforms.Group(
-                    inputs=[
-                        _transforms.InjectDefaultPrompt(self.default_prompt),
-                        _transforms.ResizeImages(224, 224),
-                        _transforms.TokenizePrompt(
-                            _tokenizer.PaligemmaTokenizer(model_config.max_token_len),
-                            discrete_state_input=model_config.discrete_state_input,
-                        ),
-                        _transforms.PadStatesAndActions(model_config.action_dim),
-                    ],
-                )
+                discrete_state_input = model_config.discrete_state_input if model_config.pi05 else False
+                input_transforms = [
+                    _transforms.InjectDefaultPrompt(self.default_prompt),
+                    _transforms.ResizeImages(224, 224),
+                    _transforms.TokenizePrompt(
+                        _tokenizer.PaligemmaTokenizer(model_config.max_token_len),
+                        discrete_state_input=discrete_state_input,
+                    ),
+                ]
+                if model_config.state_sequence_length > 1:
+                    input_transforms.append(
+                        _transforms.BuildStateSequence(model_config.state_sequence_length)
+                    )
+                input_transforms.append(_transforms.PadStatesAndActions(model_config.action_dim))
+                return _transforms.Group(inputs=input_transforms)
             case _model.ModelType.PI0_FAST:
                 tokenizer_cls = (
                     _tokenizer.FASTTokenizer
@@ -230,6 +223,13 @@ class SimpleDataConfig(DataConfigFactory):
 class LeRobotX2robotDataConfig(DataConfigFactory):
     use_delta_actions: bool = False
     action_dim: int = 14
+    state_history_size: int = 0
+    state_future_size: int = 0
+    slave_state_dim: int = 14
+
+    @property
+    def state_sequence_length(self) -> int:
+        return self.state_history_size + 1 + self.state_future_size
 
     repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
         default=_transforms.Group(
@@ -254,8 +254,15 @@ class LeRobotX2robotDataConfig(DataConfigFactory):
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         print('action dim:', model_config.action_dim)
+        
         data_transforms = _transforms.Group(
-            inputs=[arx_policy.ArxInputs(action_dim=model_config.action_dim, model_type=model_config.model_type)],
+            inputs=[arx_policy.ArxInputs(
+                action_dim=model_config.action_dim, 
+                model_type=model_config.model_type,
+                state_history_size=self.state_history_size,
+                state_future_size=self.state_future_size,
+                slave_state_dim=self.slave_state_dim,
+            )],
             outputs=[arx_policy.ArxOutputs(action_dim=self.action_dim)],
         )
         if self.use_delta_actions:
@@ -272,6 +279,8 @@ class LeRobotX2robotDataConfig(DataConfigFactory):
             repack_transforms=self.repack_transforms,
             data_transforms=data_transforms,
             model_transforms=model_transforms,
+            state_history_size=self.state_history_size,
+            state_future_size=self.state_future_size,
         )
 
 
@@ -608,6 +617,19 @@ class TrainConfig:
     def __post_init__(self) -> None:
         if self.resume and self.overwrite:
             raise ValueError("Cannot resume and overwrite at the same time.")
+        
+        # Auto-sync state_sequence_length from data to model
+        data_seq_len = getattr(self.data, 'state_sequence_length', 1)
+        model_seq_len = getattr(self.model, 'state_sequence_length', 1)
+        
+        if data_seq_len > 1 and model_seq_len == 1:
+            new_model = dataclasses.replace(self.model, state_sequence_length=data_seq_len)
+            object.__setattr__(self, 'model', new_model)
+        elif model_seq_len != data_seq_len and model_seq_len != 1:
+            raise ValueError(
+                f"Mismatch: model.state_sequence_length={model_seq_len}, "
+                f"data.state_sequence_length={data_seq_len}"
+            )
 
 
 # Use `get_config` if you need to get a config by name in your code.
@@ -1099,6 +1121,39 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="plugin_1227+0107+0110_sm2sm",
+        batch_size=16,
+        num_train_steps=30_000,
+        save_interval=10_000,
+        save_full_state=False,
+    ),
+    TrainConfig(
+        name="plugin_combined_sm2sm_delta",
+        model=pi0_config.Pi0Config(),
+        data=LeRobotX2robotDataConfig(
+            repo_id="plugin_1227_sm2sm,plugin_0107_sm2sm,plugin_0110_sm2sm", # Multiple datasets separated by comma
+            action_dim=28,
+            use_delta_actions=True,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="plugin_1227+0107+0110_sm2sm_delta",
+        batch_size=16,
+        num_train_steps=30_000,
+        save_interval=10_000,
+        save_full_state=False,
+    ),
+    TrainConfig(
+        name="plugin_combined_sm2sm_seq",
+        model=pi0_config.Pi0Config(),
+        data=LeRobotX2robotDataConfig(
+            repo_id="plugin_1227_sm2sm,plugin_0107_sm2sm,plugin_0110_sm2sm",
+            action_dim=28,
+            state_history_size=5,
+            state_future_size=3,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="plugin_1227+0107+0110_sm2sm_h5f3",
         batch_size=16,
         num_train_steps=30_000,
         save_interval=10_000,

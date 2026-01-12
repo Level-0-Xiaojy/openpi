@@ -22,22 +22,26 @@ def make_arx_example() -> dict:
 
 @dataclasses.dataclass(frozen=True)
 class ArxInputs(transforms.DataTransformFn):
-    """Inputs for the ARX policy.
-    
-    Expected inputs:
-    - images: dict[name, img] where img is [channel, height, width]. name must be in EXPECTED_CAMERAS.
-    - state: [14]
-    - actions: [action_horizon, 14]
-    """
+    """Transform inputs for the ARX policy."""
 
-    action_dim: int = 32  # Note: Pretrained Pi0 model only accepets action_dim = 32
-
+    action_dim: int = 32
     model_type: _model.ModelType = _model.ModelType.PI0
+    state_history_size: int = 0
+    state_future_size: int = 0
+    slave_state_dim: int = 14
 
     EXPECTED_CAMERAS: ClassVar[tuple[str, ...]] = ("left_wrist_view", "face_view", "right_wrist_view")
 
     def __call__(self, data: dict) -> dict:
-        state = transforms.pad_to_dim(data["state"], self.action_dim)
+        state = data["state"]
+        
+        # Handle state sequence (history + current + future)
+        if state.ndim == 2:
+            # State shape: (seq_len, state_dim)
+            state = self._mask_future_slave_states(state)
+        
+        # Pad state to action_dim
+        state = transforms.pad_to_dim(state, self.action_dim)
 
         def convert_image(img):
             img = np.asarray(img)
@@ -50,7 +54,6 @@ class ArxInputs(transforms.DataTransformFn):
             else:
                 output_image = img
             assert output_image.shape[-1] == 3, f"Image must have 3 channels, got {output_image.shape}."
-            # print(f"Output image shape: {output_image.shape}")
             return output_image
 
         # Convert images to uint8 and rearrange to (H,W,C) format
@@ -79,8 +82,18 @@ class ArxInputs(transforms.DataTransformFn):
         if "actions_is_pad" in data:
             inputs["actions_is_pad"] = data["actions_is_pad"]
 
-
         return inputs
+
+    def _mask_future_slave_states(self, state: np.ndarray) -> np.ndarray:
+        """Mask future slave states by copying current slave state."""
+        if self.state_future_size <= 0:
+            return state
+        
+        state = np.asarray(state).copy()
+        current_idx = self.state_history_size
+        current_slave = state[current_idx, :self.slave_state_dim]
+        state[current_idx + 1:, :self.slave_state_dim] = current_slave
+        return state
 
 @dataclasses.dataclass(frozen=True)
 class ArxOutputs(transforms.DataTransformFn):

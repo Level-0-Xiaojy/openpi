@@ -337,6 +337,34 @@ class PadStatesAndActions(DataTransformFn):
         return data
 
 
+@dataclasses.dataclass(frozen=True)
+class BuildStateSequence(DataTransformFn):
+    """Builds state sequence of shape (sequence_length, state_dim)."""
+    
+    state_sequence_length: int = 1
+    replicate_if_missing: bool = True
+
+    def __call__(self, data: DataDict) -> DataDict:
+        if self.state_sequence_length <= 1:
+            return data
+        
+        state = data.get("state")
+        if state is None:
+            raise ValueError("Missing 'state' in data")
+        
+        if state.ndim == 2:
+            if state.shape[0] >= self.state_sequence_length:
+                data["state"] = state[:self.state_sequence_length]
+                return data
+        elif state.ndim == 1 and self.replicate_if_missing:
+            data["state"] = np.tile(state[None, :], (self.state_sequence_length, 1))
+            return data
+        
+        raise ValueError(
+            f"Cannot build state sequence of length {self.state_sequence_length} from state shape {state.shape}"
+        )
+
+
 def flatten_dict(tree: at.PyTree) -> dict:
     """Flatten a nested dictionary. Uses '/' as the separator."""
     return traverse_util.flatten_dict(tree, sep="/")

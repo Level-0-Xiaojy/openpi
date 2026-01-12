@@ -31,6 +31,8 @@ class Pi0Config(_model.BaseModelConfig):
     pi05: bool = False
     # This config option is not used directly by the model, but it is read by the ModelTransformFactory.
     discrete_state_input: bool = None  # type: ignore
+    # Number of state frames: history + current + future. Auto-set by TrainConfig.
+    state_sequence_length: int = 1
 
     def __post_init__(self):
         if self.max_token_len is None:
@@ -56,6 +58,12 @@ class Pi0Config(_model.BaseModelConfig):
         image_spec = jax.ShapeDtypeStruct([batch_size, *_model.IMAGE_RESOLUTION, 3], jnp.float32)
         image_mask_spec = jax.ShapeDtypeStruct([batch_size], jnp.bool_)
 
+        # State shape depends on whether we use state history/future
+        if self.state_sequence_length > 1:
+            state_shape = [batch_size, self.state_sequence_length, self.action_dim]
+        else:
+            state_shape = [batch_size, self.action_dim]
+
         with at.disable_typechecking():
             observation_spec = _model.Observation(
                 images={
@@ -68,7 +76,7 @@ class Pi0Config(_model.BaseModelConfig):
                     "left_wrist_0_rgb": image_mask_spec,
                     "right_wrist_0_rgb": image_mask_spec,
                 },
-                state=jax.ShapeDtypeStruct([batch_size, self.action_dim], jnp.float32),
+                state=jax.ShapeDtypeStruct(state_shape, jnp.float32),
                 tokenized_prompt=jax.ShapeDtypeStruct([batch_size, self.max_token_len], jnp.int32),
                 tokenized_prompt_mask=jax.ShapeDtypeStruct([batch_size, self.max_token_len], bool),
             )
