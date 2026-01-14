@@ -226,6 +226,7 @@ class LeRobotX2robotDataConfig(DataConfigFactory):
     action_dim: int = 14
     state_history_size: int = 0
     state_future_size: int = 0
+    state_step: int = 1
     slave_state_dim: int = 14
 
     @property
@@ -1044,18 +1045,6 @@ _CONFIGS = [
         wandb_enabled=False,
     ),
     TrainConfig(
-        name="plugin_1227",
-        model=pi0_config.Pi0Config(),
-        data=LeRobotX2robotDataConfig(
-            repo_id="plugin_1227", # dataset repo
-        ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
-        
-        exp_name="plugin_1227",
-        batch_size=8,
-        num_train_steps=30_000,
-    ),
-    TrainConfig(
         name="microwave_1218",
         model=pi0_config.Pi0Config(),
         data=LeRobotX2robotDataConfig(
@@ -1099,26 +1088,11 @@ _CONFIGS = [
         save_full_state=False,
     ),
     TrainConfig(
-        name="plugin_0107_sm2sm",
-        model=pi0_config.Pi0Config(),
-        data=LeRobotX2robotDataConfig(
-            repo_id="plugin_0107_sm2sm", # dataset repo
-            action_dim=28,
-        ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
-        
-        exp_name="plugin_0107_sm2sm",
-        batch_size=8,
-        num_train_steps=30_000,
-        save_interval=10_000,
-        save_full_state=False,
-    ),
-    TrainConfig(
-        name="plugin_combined_s2m",
+        name="plugin_s2m",
         model=pi0_config.Pi0Config(),
         data=LeRobotX2robotDataConfig(
             repo_id="plugin_1227+0107+0110_s2m", # Multiple datasets separated by comma
-            action_dim=28,
+            action_dim=14,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
@@ -1129,7 +1103,22 @@ _CONFIGS = [
         save_full_state=False,
     ),
     TrainConfig(
-        name="plugin_combined_sm2sm",
+        name="plugin_sm2m",
+        model=pi0_config.Pi0Config(),
+        data=LeRobotX2robotDataConfig(
+            repo_id="plugin_1227+0107+0110_sm2m", # Multiple datasets separated by comma
+            action_dim=14,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="plugin_1227+0107+0110_sm2m",
+        batch_size=16,
+        num_train_steps=30_000,
+        save_interval=10_000,
+        save_full_state=False,
+    ),
+    TrainConfig(
+        name="plugin_sm2sm",
         model=pi0_config.Pi0Config(),
         data=LeRobotX2robotDataConfig(
             repo_id="plugin_1227_sm2sm,plugin_0107_sm2sm,plugin_0110_sm2sm", # Multiple datasets separated by comma
@@ -1144,7 +1133,7 @@ _CONFIGS = [
         save_full_state=False,
     ),
     TrainConfig(
-        name="plugin_combined_sm2sm_delta",
+        name="plugin_sm2sm_delta",
         model=pi0_config.Pi0Config(),
         data=LeRobotX2robotDataConfig(
             repo_id="plugin_1227_sm2sm,plugin_0107_sm2sm,plugin_0110_sm2sm", # Multiple datasets separated by comma
@@ -1160,7 +1149,7 @@ _CONFIGS = [
         save_full_state=False,
     ),
     TrainConfig(
-        name="plugin_combined_sm2sm_seq",
+        name="plugin_sm2sm_seq",
         model=pi0_config.Pi0Config(),
         data=LeRobotX2robotDataConfig(
             repo_id="plugin_1227_sm2sm,plugin_0107_sm2sm,plugin_0110_sm2sm",
@@ -1178,18 +1167,18 @@ _CONFIGS = [
         save_full_state=False,
     ),
     TrainConfig(
-        name="throw_0113_sm2m",
+        name="throw_sm2m",
         model=pi0_config.Pi0Config(),
         data=LeRobotX2robotDataConfig(
-            repo_id="throw_0113_sm2m",
+            repo_id="throw_0113_sm2m,throw_0114_sm2m",
             action_dim=14,
-            state_history_size=5,
-            state_future_size=3,
-            mask_history_slave_states=True,
+            state_history_size=0,
+            state_future_size=1,
+            state_step=3,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
-        exp_name="throw_0113_sm2m_h5f3mhs",
+        exp_name="throw_0113+0114_sm2m_h0f1s3",
         batch_size=16,
         num_train_steps=30_000,
         save_interval=10_000,

@@ -266,6 +266,7 @@ def create_torch_dataset(
     
     state_history_size = getattr(data_config, 'state_history_size', 0)
     state_future_size = getattr(data_config, 'state_future_size', 0)
+    state_step = getattr(data_config, 'state_step', 1)
     
     def _build_delta_timestamps(fps: float) -> dict[str, list[float]]:
         delta_ts = {
@@ -273,7 +274,7 @@ def create_torch_dataset(
             for key in data_config.action_sequence_keys
         }
         if state_history_size > 0 or state_future_size > 0:
-            delta_ts['state'] = [t / fps for t in range(-state_history_size, state_future_size + 1)]
+            delta_ts['state'] = [t * state_step / fps for t in range(-state_history_size, state_future_size + 1)]
         return delta_ts
     
     # Parse comma-separated repo_ids
