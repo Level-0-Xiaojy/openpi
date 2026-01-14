@@ -32,9 +32,9 @@ os.environ['SVT_LOG'] = '0'
 
 
 # Configuration
-REPO_NAME = "plugin_0110_sm2sm"
+REPO_NAME = "throw_0113_sm2m"
 RAW_DATASET_PATHS = [
-    './datasets/x2robot/plugin_0110/',
+    './datasets/x2robot/throw_0113/',
 ]
 
 FILE_CAMERA_MAPPING = {
@@ -43,7 +43,7 @@ FILE_CAMERA_MAPPING = {
     "right_wrist_view": "rightImg.mp4"
 }
 
-ACTION_KEYS = [
+STATE_KEYS = [
     'follow_left_position',
     'follow_left_rotation', 
     'follow_left_gripper',
@@ -57,6 +57,39 @@ ACTION_KEYS = [
     'master_right_rotation',
     'master_right_gripper',
 ]
+
+ACTION_KEYS = [
+    # 'follow_left_position',
+    # 'follow_left_rotation', 
+    # 'follow_left_gripper',
+    # 'follow_right_position',
+    # 'follow_right_rotation',
+    # 'follow_right_gripper',
+    'master_left_position',
+    'master_left_rotation',
+    'master_left_gripper', 
+    'master_right_position',
+    'master_right_rotation',
+    'master_right_gripper',
+]
+
+
+def get_dim_from_keys(keys: list[str]) -> int:
+    """Calculate the total dimension from a list of keys.
+    
+    Position keys have 3 dims, rotation keys have 3 dims, gripper keys have 1 dim.
+    """
+    dim = 0
+    for key in keys:
+        if 'gripper' in key:
+            dim += 1
+        elif 'position' in key:
+            dim += 3
+        elif 'rotation' in key:
+            dim += 3
+        else:
+            raise ValueError(f"Unknown key type: {key}")
+    return dim
 
 
 @dataclass
@@ -79,7 +112,7 @@ def find_episodes(raw_paths: list[str]) -> list[str]:
     return sorted(episode_paths)
 
 
-def load_json_data(episode_path: str) -> np.ndarray:
+def load_json_data(episode_path: str) -> tuple[np.ndarray, np.ndarray]:
     """Load and parse JSON data for an episode."""
     episode_name = os.path.basename(episode_path)
     json_path = os.path.join(episode_path, f"{episode_name}.json")
@@ -87,20 +120,24 @@ def load_json_data(episode_path: str) -> np.ndarray:
     with open(json_path, 'r') as f:
         data = json.load(f)['data']
     
-    trajectories = {key: [] for key in ACTION_KEYS}
+    # Collect all keys needed
+    all_keys = set(STATE_KEYS) | set(ACTION_KEYS)
+    trajectories = {key: [] for key in all_keys}
     for frame_data in data:
-        for key in ACTION_KEYS:
+        for key in all_keys:
             trajectories[key].append(frame_data[key])
     
-    actions = {}
+    # Convert to arrays
+    arrays = {}
     for key, vals in trajectories.items():
         arr = np.array(vals, dtype=np.float32)
         if 'gripper' in key:
             arr = arr.reshape(-1, 1)
-        actions[key] = arr
+        arrays[key] = arr
     
-    state_action = np.concatenate([actions[key] for key in ACTION_KEYS], axis=1)
-    return state_action
+    state_array = np.concatenate([arrays[key] for key in STATE_KEYS], axis=1)
+    action_array = np.concatenate([arrays[key] for key in ACTION_KEYS], axis=1)
+    return state_array, action_array
 
 
 def decode_video_ffmpeg(
@@ -396,12 +433,12 @@ def main(
             },
             "state": {
                 "dtype": "float32",
-                "shape": (28,),
+                "shape": (get_dim_from_keys(STATE_KEYS),),
                 "names": ["state"],
             },
             "actions": {
                 "dtype": "float32",
-                "shape": (28,),
+                "shape": (get_dim_from_keys(ACTION_KEYS),),
                 "names": ["actions"],
             },
         },
@@ -471,8 +508,8 @@ def main(
     datasets.disable_progress_bars()
     
     for ep_idx, ep_path in tqdm.tqdm(enumerate(episode_paths), total=len(episode_paths), desc="Building dataset"):
-        state_action = load_json_data(ep_path)
-        num_frames = len(state_action)
+        state_array, action_array = load_json_data(ep_path)
+        num_frames = len(state_array)
         
         for i in range(num_frames - 1):
             # Use dummy images - they're already on disk from Phase 1
@@ -480,8 +517,8 @@ def main(
                 "face_view": dummy_image,
                 "left_wrist_view": dummy_image,
                 "right_wrist_view": dummy_image,
-                "state": state_action[i],
-                "actions": state_action[i + 1],
+                "state": state_array[i],
+                "actions": action_array[i + 1],
                 "task": '',
             }
             
@@ -491,7 +528,7 @@ def main(
         dataset.save_episode()
     
     # Re-enable progress bars
-    datasets.enable_progress_bars()
+    # datasets.enable_progress_bars()
     
     t_build_end = time.time()
     print(f"Dataset building completed in {t_build_end - t_build_start:.2f}s")

@@ -29,6 +29,7 @@ class ArxInputs(transforms.DataTransformFn):
     state_history_size: int = 0
     state_future_size: int = 0
     slave_state_dim: int = 14
+    mask_history_slave_states: bool = False
 
     EXPECTED_CAMERAS: ClassVar[tuple[str, ...]] = ("left_wrist_view", "face_view", "right_wrist_view")
 
@@ -38,7 +39,7 @@ class ArxInputs(transforms.DataTransformFn):
         # Handle state sequence (history + current + future)
         if state.ndim == 2:
             # State shape: (seq_len, state_dim)
-            state = self._mask_future_slave_states(state)
+            state = self._mask_slave_states(state)
         
         # Pad state to action_dim
         state = transforms.pad_to_dim(state, self.action_dim)
@@ -84,15 +85,17 @@ class ArxInputs(transforms.DataTransformFn):
 
         return inputs
 
-    def _mask_future_slave_states(self, state: np.ndarray) -> np.ndarray:
+    def _mask_slave_states(self, state: np.ndarray) -> np.ndarray:
         """Mask future slave states by copying current slave state."""
-        if self.state_future_size <= 0:
-            return state
-        
         state = np.asarray(state).copy()
         current_idx = self.state_history_size
         current_slave = state[current_idx, :self.slave_state_dim]
-        state[current_idx + 1:, :self.slave_state_dim] = current_slave
+        
+        if self.state_future_size > 0:    
+            state[current_idx + 1:, :self.slave_state_dim] = current_slave
+        if self.mask_history_slave_states and self.state_history_size > 0:
+            state[:current_idx, :self.slave_state_dim] = current_slave
+
         return state
 
 @dataclasses.dataclass(frozen=True)
