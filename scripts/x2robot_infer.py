@@ -59,12 +59,17 @@ def interpolates_actions(actions, target_num_actions = 80, action_dim=7):
 
 class EnvMode(enum.Enum):
     """Supported environments."""
-
     ALOHA = "aloha"
     ALOHA_SIM = "aloha_sim"
     DROID = "droid"
     LIBERO = "libero"
     X2ROBOT = "x2robot"
+
+class PolicyMode(enum.Enum):
+    S2S = "s2s"
+    S2M = "s2m"
+    SM2M = "sm2m"
+    SM2SM = "sm2sm"
 
 @dataclasses.dataclass
 class Checkpoint:
@@ -90,6 +95,7 @@ class Args:
     port: int = 8000
     record: bool = False
     policy: Checkpoint | Default = dataclasses.field(default_factory=Default)
+    policy_mode: str = "s2m"
     log_replay: bool = False
     openloop: bool = False
     openloop_filepath: str | None = '/home/fangxinyuan/projects/dataset/test_dataset'
@@ -213,12 +219,14 @@ def main(args: Args) -> None:
                 'right_wrist_view': camera_right,
             },
             'prompt': '',
-            'state': np.concatenate([slave_state, prev_master_state]),
+            'state': slave_state if args.policy_mode in ["s2s", "s2m"] else \
+                np.concatenate([slave_state, prev_master_state])
         }
         action_pred = policy.infer(obs)
         action_pred = action_pred['actions']
-        slave_action, master_action = action_pred[:, :14], action_pred[:, 14:28]
-        action_pred = master_action
+        if args.policy_mode == "sm2sm":
+            slave_action, master_action = action_pred[:, :14], action_pred[:, 14:28]
+            action_pred = master_action
         
         # move_steps = action_pred.shape[0]
         move_steps = 20
