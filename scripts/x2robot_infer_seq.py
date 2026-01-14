@@ -190,7 +190,8 @@ def main(args: Args) -> None:
         
         action_pred = action_pred[args.state_future_size:]
         action_pred = action_pred[:args.move_steps, ...]  # (move_steps, 14)
-        for action in action_pred:
+        action_pred = np.concatenate([[master_queue[-1]], action_pred])
+        for action in action_pred[1:]:
             master_queue.append(action)
 
         follow1_pos = action_pred[:, :7].tolist()
