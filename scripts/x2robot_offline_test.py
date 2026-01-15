@@ -21,7 +21,7 @@ from openpi.training import config as _config
 
 @dataclasses.dataclass
 class Args:
-    dataset_dir: str = "datasets/x2robot/throw_0113"
+    dataset_dir: str = "datasets/x2robot/throw_0113"  # Support multiple datasets separated by comma
     policy_config: str = "throw_sm2m"
     policy_dir: str = "checkpoints/throw_sm2m/throw_0113_sm2m_h5f3/29999"
     policy_mode: str | None = None  # Auto-detect from policy_dir if None (s2s, s2m, sm2m, sm2sm)
@@ -178,20 +178,31 @@ def main(args: Args):
     logging.info(f"Loading policy from {args.policy_dir}")
     policy = _policy_config.create_trained_policy(cfg, args.policy_dir)
     
-    # Find and filter episodes
-    episodes = sorted([p for p in glob.glob(f'{args.dataset_dir}/*') 
-                      if os.path.isdir(p) and glob.glob(f'{p}/*.mp4')])
-    logging.info(f"Found {len(episodes)} episodes")
+    # Find and filter episodes from multiple datasets
+    dataset_dirs = [d.strip() for d in args.dataset_dir.split(',')]
+    all_episodes = []
     
-    # Split filtering
-    if args.split:
-        rng = np.random.RandomState(args.split_seed)
-        indices = np.arange(len(episodes))
-        rng.shuffle(indices)
-        val_size = int(len(episodes) * args.val_ratio)
-        indices = indices[:val_size] if args.split == "val" else indices[val_size:]
-        episodes = [episodes[i] for i in sorted(indices)]
-        logging.info(f"Using {args.split} split: {len(episodes)} episodes")
+    for dataset_dir in dataset_dirs:
+        # Find episodes in this dataset
+        dataset_episodes = sorted([p for p in glob.glob(f'{dataset_dir}/*') 
+                                   if os.path.isdir(p) and glob.glob(f'{p}/*.mp4')])
+        
+        # Apply split to each dataset separately
+        if args.split:
+            rng = np.random.RandomState(args.split_seed)
+            indices = np.arange(len(dataset_episodes))
+            rng.shuffle(indices)
+            val_size = int(len(dataset_episodes) * args.val_ratio)
+            indices = indices[:val_size] if args.split == "val" else indices[val_size:]
+            dataset_episodes = [dataset_episodes[i] for i in sorted(indices)]
+            logging.info(f"Dataset {dataset_dir}: {len(dataset_episodes)} episodes in {args.split} split")
+        else:
+            logging.info(f"Dataset {dataset_dir}: {len(dataset_episodes)} episodes")
+        
+        all_episodes.extend(dataset_episodes)
+    
+    episodes = all_episodes
+    logging.info(f"Total: {len(episodes)} episodes across {len(dataset_dirs)} dataset(s)")
     
     if args.num_episodes:
         episodes = episodes[:args.num_episodes]
