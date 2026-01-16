@@ -18,6 +18,7 @@ from openpi.policies import policy as _policy
 from openpi.policies import policy_config as _policy_config
 from openpi.serving import websocket_policy_server
 from openpi.training import config as _config
+from openpi.training import checkpoints as _checkpoints
 
 import numpy as np
 from scipy.spatial.transform import Rotation as R
@@ -99,6 +100,7 @@ class Args:
     log_replay: bool = False
     openloop: bool = False
     openloop_filepath: str | None = '/home/fangxinyuan/projects/dataset/test_dataset'
+    only_right_arm: bool = False
 
 # Default checkpoints that should be used for each environment.
 DEFAULT_CHECKPOINT: dict[EnvMode, Checkpoint] = {
@@ -138,6 +140,11 @@ def create_policy(args: Args) -> _policy.Policy:
         case Default():
             return create_default_policy(args.env, default_prompt=args.default_prompt)
 
+def _load_norm_stats(args: Args) -> dict | None:
+    train_config = _config.get_config(args.policy.config)
+    data_config = train_config.data.create(train_config.assets_dirs, train_config.model)
+    return _checkpoints.load_norm_stats(Path(args.policy.dir) / "assets", data_config.asset_id)
+
 def recv_all(sock, count):
     buf = b''
     while count:
@@ -159,6 +166,7 @@ def read_img(conn,i,save_path,count=0):
 def main(args: Args) -> None:
     
     policy = create_policy(args)
+    norm_stats = _load_norm_stats(args)
 
     count = 0
     prev_master_state = None
@@ -212,6 +220,17 @@ def main(args: Args) -> None:
         if prev_master_state is None:
             prev_master_state = slave_state
             
+        if args.policy_mode in ["s2s", "s2m"]:
+            state = slave_state
+        else:
+            state = np.concatenate([slave_state, prev_master_state])
+
+        if args.only_right_arm:
+            mean = np.asarray(norm_stats["state"].mean)
+            state[0:7] = mean[0:7]
+            if args.policy_mode in ["sm2m", "sm2sm"]:
+                state[14:21] = mean[14:21]
+
         obs = {
             'images': {
                 'left_wrist_view': camera_left,
@@ -219,8 +238,7 @@ def main(args: Args) -> None:
                 'right_wrist_view': camera_right,
             },
             'prompt': '',
-            'state': slave_state if args.policy_mode in ["s2s", "s2m"] else \
-                np.concatenate([slave_state, prev_master_state])
+            'state': state,
         }
         action_pred = policy.infer(obs)
         action_pred = action_pred['actions']

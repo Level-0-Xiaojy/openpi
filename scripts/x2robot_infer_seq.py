@@ -6,6 +6,7 @@ import logging
 import struct
 import socket
 from collections import deque
+from pathlib import Path
 from typing import Literal
 
 import tyro
@@ -16,6 +17,7 @@ import numpy as np
 from openpi.policies import policy as _policy
 from openpi.policies import policy_config as _policy_config
 from openpi.training import config as _config
+from openpi.training import checkpoints as _checkpoints
 
 @dataclasses.dataclass
 class Args:
@@ -28,7 +30,13 @@ class Args:
     state_future_size: int = None
     state_step: int = None
     move_steps: int = 15
-    
+    only_right_arm: bool = False
+
+def _load_norm_stats(policy_config: str, policy_dir: str) -> dict | None:
+    train_config = _config.get_config(policy_config)
+    data_config = train_config.data.create(train_config.assets_dirs, train_config.model)
+    return _checkpoints.load_norm_stats(Path(policy_dir) / "assets", data_config.asset_id)
+
 def recv_all(sock, count):
     buf = b''
     while count:
@@ -72,6 +80,7 @@ def main(args: Args) -> None:
     # Load policy
     logging.info(f"Loading policy from {args.policy_dir}")
     policy = _policy_config.create_trained_policy(cfg, args.policy_dir)
+    norm_stats = _load_norm_stats(args.policy_config, args.policy_dir)
 
     state_seq_len = args.state_history_size + 1 + args.state_future_size
     master_queue = deque(maxlen=100)  # queue_len * 14
@@ -119,6 +128,12 @@ def main(args: Args) -> None:
         else:
             state = np.concatenate([slave_state, master_state], axis=1)
 
+        if args.only_right_arm:
+            mean = np.asarray(norm_stats["state"].mean)
+            state[:, 0:7] = mean[..., 0:7]
+            if args.policy_mode in ["sm2m", "sm2sm"]:
+                state[:, 14:21] = mean[..., 14:21]
+        
         obs = {
             'images': {
                 'left_wrist_view': camera_left,
