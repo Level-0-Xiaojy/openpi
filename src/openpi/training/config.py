@@ -1184,6 +1184,39 @@ _CONFIGS = [
         save_interval=10_000,
         save_full_state=False,
     ),
+    TrainConfig(
+        name="tpplugin_s2m",
+        model=pi0_config.Pi0Config(),
+        data=LeRobotX2robotDataConfig(
+            repo_id="tpplugin_0115_s2m", # Multiple datasets separated by comma
+            action_dim=14,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="tpplugin_0115_s2m",
+        batch_size=16,
+        num_train_steps=30_000,
+        save_interval=10_000,
+        save_full_state=False,
+    ),
+    TrainConfig(
+        name="tpplugin_sm2m",
+        model=pi0_config.Pi0Config(),
+        data=LeRobotX2robotDataConfig(
+            repo_id="tpplugin_0115_sm2m", # Multiple datasets separated by comma
+            action_dim=14,
+            state_history_size=0,
+            state_future_size=3,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="tpplugin_0115_sm2m_h0f3",
+        batch_size=16,
+        num_train_steps=30_000,
+        save_interval=10_000,
+        save_full_state=False,
+    ),
+    
     # RoboArena & PolaRiS configs.
     *roboarena_config.get_roboarena_configs(),
     *polaris_config.get_polaris_configs(),
