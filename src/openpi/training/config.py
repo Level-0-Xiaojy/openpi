@@ -228,7 +228,10 @@ class LeRobotX2robotDataConfig(DataConfigFactory):
     state_future_size: int = 0
     state_step: int = 1
     slave_state_dim: int = 14
-
+    random_drop_master: float = 0.0
+    random_drop_history: float = 0.0
+    random_drop_future: float = 0.0
+   
     @property
     def state_sequence_length(self) -> int:
         return self.state_history_size + 1 + self.state_future_size
@@ -265,6 +268,9 @@ class LeRobotX2robotDataConfig(DataConfigFactory):
                 state_future_size=self.state_future_size,
                 slave_state_dim=self.slave_state_dim,
                 mask_history_slave_states=self.mask_history_slave_states,
+                random_drop_master=self.random_drop_master,
+                random_drop_history=self.random_drop_history,
+                random_drop_future=self.random_drop_future,
             )],
             outputs=[arx_policy.ArxOutputs(action_dim=self.action_dim)],
         )
@@ -277,8 +283,32 @@ class LeRobotX2robotDataConfig(DataConfigFactory):
 
         model_transforms = ModelTransformFactory()(model_config)
 
+        # Create base config and fix zero-variance dimensions if needed
+        base_config = self.create_base_config(assets_dirs, model_config)
+        
+        # Fix zero-variance dimensions in norm_stats if configured
+        if self.random_drop_master > 0. or self.random_drop_future > 0.:
+            import numpy as np
+    
+            norm_stats = dict(base_config.norm_stats)  # Shallow copy of dict
+            state_stats = norm_stats["state"]
+            new_std = np.array(state_stats.std, copy=True)
+            zero_var_indices = np.where(new_std == 0)[0]
+            if len(zero_var_indices) > 0:
+                new_std[zero_var_indices] = 1.0
+                logging.info(f"Fixed {len(zero_var_indices)} zero-variance state dimensions: {zero_var_indices.tolist()}")
+                
+                # NormStats is a pydantic dataclass, recreate it
+                norm_stats["state"] = _normalize.NormStats(
+                    mean=state_stats.mean,
+                    std=new_std,
+                    q01=state_stats.q01,
+                    q99=state_stats.q99,
+                )
+                base_config = dataclasses.replace(base_config, norm_stats=norm_stats)
+
         return dataclasses.replace(
-            self.create_base_config(assets_dirs, model_config),
+            base_config,
             repack_transforms=self.repack_transforms,
             data_transforms=data_transforms,
             model_transforms=model_transforms,
@@ -1108,10 +1138,15 @@ _CONFIGS = [
         data=LeRobotX2robotDataConfig(
             repo_id="plugin_1227+0107+0110_sm2m", # Multiple datasets separated by comma
             action_dim=14,
+            state_history_size=5,
+            state_future_size=3,
+            random_drop_master=0.1,
+            random_drop_future=0.75,
+            random_drop_history=0.5,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
-        exp_name="plugin_1227+0107+0110_sm2m",
+        exp_name="plugin_1227+0107+0110_sm2m_h5f3_dm10dh50df75",
         batch_size=16,
         num_train_steps=30_000,
         save_interval=10_000,
@@ -1205,12 +1240,11 @@ _CONFIGS = [
         data=LeRobotX2robotDataConfig(
             repo_id="tpplugin_0115_sm2m", # Multiple datasets separated by comma
             action_dim=14,
-            state_history_size=0,
-            state_future_size=3,
+            random_drop_master=0.5,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
-        exp_name="tpplugin_0115_sm2m_h0f3",
+        exp_name="tpplugin_0115_sm2m_dm50",
         batch_size=16,
         num_train_steps=30_000,
         save_interval=10_000,

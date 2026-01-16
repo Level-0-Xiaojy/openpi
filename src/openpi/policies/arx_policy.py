@@ -1,3 +1,4 @@
+import random
 import dataclasses
 import einops
 import numpy as np
@@ -30,20 +31,26 @@ class ArxInputs(transforms.DataTransformFn):
     state_future_size: int = 0
     slave_state_dim: int = 14
     mask_history_slave_states: bool = False
+    random_drop_master: float = 0.
+    random_drop_history: float = 0.
+    random_drop_future: float = 0.
 
     EXPECTED_CAMERAS: ClassVar[tuple[str, ...]] = ("left_wrist_view", "face_view", "right_wrist_view")
 
     def __call__(self, data: dict) -> dict:
         state = data["state"]
         
-        # Handle state sequence (history + current + future)
         if state.ndim == 2:
-            # State shape: (seq_len, state_dim)
-            state = self._mask_slave_states(state)
-        
-        # Pad state to action_dim
-        state = transforms.pad_to_dim(state, self.action_dim)
-
+            assert state.shape[0] == self.state_history_size + 1 + self.state_future_size
+            state, master_mask = self._mask_states(state)
+            state = transforms.pad_to_dim(state, self.action_dim)
+            state[:, -1] = master_mask
+        else:
+            if random.random() < self.random_drop_master:
+                state[self.slave_state_dim:] = state[:self.slave_state_dim]
+                state = transforms.pad_to_dim(state, self.action_dim)
+                state[-1] = 1.
+            
         def convert_image(img):
             img = np.asarray(img)
             # Convert to uint8 if using float images.
@@ -85,18 +92,32 @@ class ArxInputs(transforms.DataTransformFn):
 
         return inputs
 
-    def _mask_slave_states(self, state: np.ndarray) -> np.ndarray:
+    def _mask_states(self, state: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Mask future slave states by copying current slave state."""
         state = np.asarray(state).copy()
         current_idx = self.state_history_size
         current_slave = state[current_idx, :self.slave_state_dim]
-        
-        if self.state_future_size > 0:    
+        current_state = state[current_idx]
+        master_mask = np.zeros((state.shape[0],), dtype=state.dtype)
+
+        if self.state_future_size > 0:  # always mask future slave states
             state[current_idx + 1:, :self.slave_state_dim] = current_slave
         if self.mask_history_slave_states and self.state_history_size > 0:
             state[:current_idx, :self.slave_state_dim] = current_slave
 
-        return state
+        # Data augmentation: randomly drop history/future/master states
+        if random.random() < self.random_drop_master:
+            state[:, self.slave_state_dim:] = current_slave
+            master_mask[:] = 1.
+        if random.random() < self.random_drop_history and self.state_history_size > 0:
+            state[:current_idx] = current_state
+            master_mask[:current_idx] = 1.
+        if random.random() < self.random_drop_future and self.state_future_size > 0:
+            mask_size = random.randint(1, self.state_future_size)
+            state[-mask_size:] = state[-mask_size - 1]
+            master_mask[-mask_size:] = 1.
+        
+        return state, master_mask
 
 @dataclasses.dataclass(frozen=True)
 class ArxOutputs(transforms.DataTransformFn):
