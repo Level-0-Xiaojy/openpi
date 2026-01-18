@@ -25,6 +25,7 @@ def make_arx_example() -> dict:
 class ArxInputs(transforms.DataTransformFn):
     """Transform inputs for the ARX policy."""
 
+    mode: str = "s2s"  # "s2s", "s2m", "sm2m", "sm2sm"
     action_dim: int = 32
     model_type: _model.ModelType = _model.ModelType.PI0
     state_history_size: int = 0
@@ -34,6 +35,7 @@ class ArxInputs(transforms.DataTransformFn):
     random_drop_master: float = 0.
     random_drop_history: float = 0.
     random_drop_future: float = 0.
+    random_pos_offset: float = 0.
 
     EXPECTED_CAMERAS: ClassVar[tuple[str, ...]] = ("left_wrist_view", "face_view", "right_wrist_view")
 
@@ -50,6 +52,8 @@ class ArxInputs(transforms.DataTransformFn):
                 state[self.slave_state_dim:] = state[:self.slave_state_dim]
                 state = transforms.pad_to_dim(state, self.action_dim)
                 state[-1] = 1.
+            
+        state = transforms.pad_to_dim(state, self.action_dim)
             
         def convert_image(img):
             img = np.asarray(img)
@@ -89,6 +93,16 @@ class ArxInputs(transforms.DataTransformFn):
             inputs["prompt"] = data["prompt"]
         if "actions_is_pad" in data:
             inputs["actions_is_pad"] = data["actions_is_pad"]
+
+        # random position offset augmentation
+        if self.random_pos_offset > 0.:
+            pos_offset = (np.random.rand(3) * 2 - 1.) * self.random_pos_offset
+            inputs["state"][..., 7:10] += pos_offset
+            inputs["actions"][..., 7:10] += pos_offset
+            if self.mode in ["sm2m", "sm2sm"]:
+                inputs["state"][..., 21:24] += pos_offset
+            if self.mode == "sm2sm":
+                inputs["actions"][..., 21:24] += pos_offset
 
         return inputs
 

@@ -221,6 +221,7 @@ class SimpleDataConfig(DataConfigFactory):
 
 @dataclasses.dataclass(frozen=True)
 class LeRobotX2robotDataConfig(DataConfigFactory):
+    mode: str = None
     use_delta_actions: bool = False
     mask_history_slave_states: bool = False
     action_dim: int = 14
@@ -228,9 +229,10 @@ class LeRobotX2robotDataConfig(DataConfigFactory):
     state_future_size: int = 0
     state_step: int = 1
     slave_state_dim: int = 14
-    random_drop_master: float = 0.0
-    random_drop_history: float = 0.0
-    random_drop_future: float = 0.0
+    random_drop_master: float = 0.
+    random_drop_history: float = 0.
+    random_drop_future: float = 0.
+    random_pos_offset: float = 0.
    
     @property
     def state_sequence_length(self) -> int:
@@ -258,10 +260,11 @@ class LeRobotX2robotDataConfig(DataConfigFactory):
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
-        print('action dim:', model_config.action_dim)
-        
+        assert self.mode in ["s2s", "s2m", "sm2m", "sm2sm"], f"Invalid mode: {self.mode}"
+
         data_transforms = _transforms.Group(
             inputs=[arx_policy.ArxInputs(
+                mode=self.mode,
                 action_dim=model_config.action_dim, 
                 model_type=model_config.model_type,
                 state_history_size=self.state_history_size,
@@ -271,6 +274,7 @@ class LeRobotX2robotDataConfig(DataConfigFactory):
                 random_drop_master=self.random_drop_master,
                 random_drop_history=self.random_drop_history,
                 random_drop_future=self.random_drop_future,
+                random_pos_offset=self.random_pos_offset,
             )],
             outputs=[arx_policy.ArxOutputs(action_dim=self.action_dim)],
         )
@@ -1136,17 +1140,15 @@ _CONFIGS = [
         name="plugin_sm2m",
         model=pi0_config.Pi0Config(),
         data=LeRobotX2robotDataConfig(
-            repo_id="plugin_1227+0107+0110_sm2m", # Multiple datasets separated by comma
+            repo_id="plugin_1227+0107+0110_sm2m,plugin_c0118_sm2m", # Multiple datasets separated by comma
+            mode="sm2m",
             action_dim=14,
-            state_history_size=5,
-            state_future_size=3,
-            random_drop_master=0.1,
-            random_drop_future=0.75,
-            random_drop_history=0.5,
+            random_drop_master=0.50,
+            random_pos_offset=0.020,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
-        exp_name="plugin_1227+0107+0110_sm2m_h5f3_dm10dh50df75",
+        exp_name="plugin_1227+0107+0110+c0118_sm2m_dm50_po20",
         batch_size=16,
         num_train_steps=30_000,
         save_interval=10_000,
@@ -1250,6 +1252,43 @@ _CONFIGS = [
         save_interval=10_000,
         save_full_state=False,
     ),
+    TrainConfig(
+        name="hitball_s2m",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            repo_id="hitball_0118s_s2m", # Multiple datasets separated by comma
+            mode="s2m",
+            action_dim=14,
+        ),
+        lr_schedule=_optimizer.CosineDecaySchedule(decay_steps=20_000),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="hitball_0118s_s2m_a20",
+        batch_size=16,
+        num_train_steps=20_000,
+        save_interval=10_000,
+        save_full_state=False,
+    ),
+    TrainConfig(
+        name="hitball_sm2m",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            repo_id="hitball_0118s_sm2m", # Multiple datasets separated by comma
+            mode="sm2m",
+            action_dim=14,
+            state_history_size=5,
+            state_future_size=3,
+        ),
+        lr_schedule=_optimizer.CosineDecaySchedule(decay_steps=20_000),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="hitball_0118s_sm2m_a20_h5f3",
+        batch_size=16,
+        num_train_steps=20_000,
+        save_interval=10_000,
+        save_full_state=False,
+    ),
+    
     
     # RoboArena & PolaRiS configs.
     *roboarena_config.get_roboarena_configs(),
