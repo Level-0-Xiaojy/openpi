@@ -233,6 +233,7 @@ class LeRobotX2robotDataConfig(DataConfigFactory):
     random_drop_history: float = 0.
     random_drop_future: float = 0.
     random_pos_offset: float = 0.
+    only_right_obs: bool = False
    
     @property
     def state_sequence_length(self) -> int:
@@ -275,6 +276,7 @@ class LeRobotX2robotDataConfig(DataConfigFactory):
                 random_drop_history=self.random_drop_history,
                 random_drop_future=self.random_drop_future,
                 random_pos_offset=self.random_pos_offset,
+                only_right_obs=self.only_right_obs,
             )],
             outputs=[arx_policy.ArxOutputs(action_dim=self.action_dim)],
         )
@@ -1123,14 +1125,16 @@ _CONFIGS = [
     ),
     TrainConfig(
         name="plugin_s2m",
-        model=pi0_config.Pi0Config(),
+        model=pi0_config.Pi0Config(action_horizon=30),
         data=LeRobotX2robotDataConfig(
             repo_id="plugin_1227+0107+0110_s2m", # Multiple datasets separated by comma
+            mode="s2m",
             action_dim=14,
+            only_right_obs=True,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
-        exp_name="plugin_1227+0107+0110_s2m",
+        exp_name="plugin_1227+0107+0110_s2m_a30_oro",
         batch_size=16,
         num_train_steps=30_000,
         save_interval=10_000,
@@ -1138,17 +1142,18 @@ _CONFIGS = [
     ),
     TrainConfig(
         name="plugin_sm2m",
-        model=pi0_config.Pi0Config(),
+        model=pi0_config.Pi0Config(action_horizon=30),
         data=LeRobotX2robotDataConfig(
-            repo_id="plugin_1227+0107+0110_sm2m,plugin_c0118_sm2m", # Multiple datasets separated by comma
+            repo_id="plugin_1227+0107+0110_sm2m", # Multiple datasets separated by comma
             mode="sm2m",
             action_dim=14,
+            only_right_obs=True,
             random_drop_master=0.50,
             random_pos_offset=0.020,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
-        exp_name="plugin_1227+0107+0110+c0118_sm2m_dm50_po20",
+        exp_name="plugin_1227+0107+0110_sm2m_a30_dm50_po20_oro",
         batch_size=16,
         num_train_steps=30_000,
         save_interval=10_000,

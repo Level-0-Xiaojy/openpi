@@ -36,6 +36,7 @@ class ArxInputs(transforms.DataTransformFn):
     random_drop_history: float = 0.
     random_drop_future: float = 0.
     random_pos_offset: float = 0.
+    only_right_obs: bool = False
 
     EXPECTED_CAMERAS: ClassVar[tuple[str, ...]] = ("left_wrist_view", "face_view", "right_wrist_view")
 
@@ -103,6 +104,16 @@ class ArxInputs(transforms.DataTransformFn):
                 inputs["state"][..., 21:24] += pos_offset
             if self.mode == "sm2sm":
                 inputs["actions"][..., 21:24] += pos_offset
+        
+        if self.only_right_obs:
+            inputs["image_mask"]["base_0_rgb"] = np.False_
+            inputs["image_mask"]["left_wrist_0_rgb"] = np.False_
+            inputs["state"][..., :7] = 0.
+            inputs["actions"][..., :7] = 0.
+            if self.mode in ["sm2m", "sm2sm"]:
+                inputs["state"][..., 14:21] = 0.
+            if self.mode == "sm2sm":
+                inputs["actions"][..., 14:21] = 0.
 
         return inputs
 
