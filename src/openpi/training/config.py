@@ -623,6 +623,10 @@ class TrainConfig:
     # If true, will enable wandb logging.
     wandb_enabled: bool = True
 
+    # If true, will create validation data loader and run validation during training.
+    # If false, will use all data for training without validation.
+    valid: bool = True
+
     # If true, will save full training state (including optimizer state and EMA params).
     # If false, will only save model parameters to reduce checkpoint size.
     save_full_state: bool = True
@@ -1293,8 +1297,58 @@ _CONFIGS = [
         save_interval=10_000,
         save_full_state=False,
     ),
-    
-    
+    TrainConfig(
+        name="plugusb_s2m",
+        model=pi0_config.Pi0Config(action_horizon=30),
+        data=LeRobotX2robotDataConfig(
+            repo_id="plugusb_0119_s2m", # Multiple datasets separated by comma
+            mode="s2m",
+            action_dim=14,
+            only_right_obs=True,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="plugusb_0119_s2m_a30_oro",
+        batch_size=16,
+        num_train_steps=30_000,
+        save_interval=10_000,
+        save_full_state=False,
+    ),
+    TrainConfig(
+        name="plugusb_sm2m",
+        model=pi0_config.Pi0Config(action_horizon=30),
+        data=LeRobotX2robotDataConfig(
+            repo_id="plugusb_0119_sm2m", # Multiple datasets separated by comma
+            mode="sm2m",
+            action_dim=14,
+            only_right_obs=True,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="plugusb_0119_sm2m_a30_oro",
+        batch_size=16,
+        num_train_steps=30_000,
+        save_interval=10_000,
+        save_full_state=False,
+    ),
+    TrainConfig(
+        name="pipeline_s2m",
+        model=pi0_config.Pi0Config(action_horizon=30),
+        data=LeRobotX2robotDataConfig(
+            repo_id="pipeline_0120_s2m", # Multiple datasets separated by comma
+            mode="s2m",
+            action_dim=14,
+            # only_right_obs=True,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="pipeline_0120_s2m_a30_oro",
+        batch_size=16,
+        num_train_steps=30_000,
+        save_interval=10_000,
+        save_full_state=False,
+    ),
+
     # RoboArena & PolaRiS configs.
     *roboarena_config.get_roboarena_configs(),
     *polaris_config.get_polaris_configs(),

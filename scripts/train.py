@@ -255,15 +255,17 @@ def main(config: _config.TrainConfig):
     batch = next(data_iter)
     logging.info(f"Initialized data loader:\n{training_utils.array_tree_to_info(batch)}")
 
-    # Create validation data loader (with shuffle for better IID)
-    val_loader = _data_loader.create_data_loader(
-        config,
-        sharding=data_sharding,
-        shuffle=True,
-        split="val",
-    )
-    val_iter = iter(val_loader)  # Create persistent validation iterator
-    logging.info(f"Initialized validation data loader")
+    # Create validation data loader (with shuffle for better IID) only if validation is enabled
+    val_iter = None
+    if config.valid:
+        val_loader = _data_loader.create_data_loader(
+            config,
+            sharding=data_sharding,
+            shuffle=True,
+            split="val",
+        )
+        val_iter = iter(val_loader)  # Create persistent validation iterator
+        logging.info(f"Initialized validation data loader")
 
     # Log images from first batch to sanity check.
     images_to_log = [
@@ -286,11 +288,14 @@ def main(config: _config.TrainConfig):
         donate_argnums=(1,),
     )
     
-    pval_step = jax.jit(
-        functools.partial(validation_step, config),
-        in_shardings=(replicated_sharding, train_state_sharding, data_sharding),
-        out_shardings=replicated_sharding,
-    )
+    # Only compile validation step if validation is enabled
+    pval_step = None
+    if config.valid:
+        pval_step = jax.jit(
+            functools.partial(validation_step, config),
+            in_shardings=(replicated_sharding, train_state_sharding, data_sharding),
+            out_shardings=replicated_sharding,
+        )
 
     start_step = int(train_state.step)
     pbar = tqdm.tqdm(
@@ -309,17 +314,18 @@ def main(config: _config.TrainConfig):
             stacked_infos = common_utils.stack_forest(infos)
             reduced_info = jax.device_get(jax.tree.map(jnp.mean, stacked_infos))
             
-            # Run validation on a few batches
-            val_losses = []
-            num_val_batches = 10  # Fixed number of validation batches per step
-            for _ in range(num_val_batches):
-                val_batch = next(val_iter)  # Use persistent iterator
-                with sharding.set_mesh(mesh):
-                    val_info = pval_step(train_rng, train_state, val_batch)
-                val_losses.append(val_info["val_loss"])
-            
-            if val_losses:
-                reduced_info["val_loss"] = float(jax.device_get(jnp.mean(jnp.array(val_losses))))
+            # Run validation on a few batches only if validation is enabled
+            if config.valid and val_iter is not None:
+                val_losses = []
+                num_val_batches = 10  # Fixed number of validation batches per step
+                for _ in range(num_val_batches):
+                    val_batch = next(val_iter)  # Use persistent iterator
+                    with sharding.set_mesh(mesh):
+                        val_info = pval_step(train_rng, train_state, val_batch)
+                    val_losses.append(val_info["val_loss"])
+                
+                if val_losses:
+                    reduced_info["val_loss"] = float(jax.device_get(jnp.mean(jnp.array(val_losses))))
             
             info_str = ", ".join(f"{k}={v:.4f}" for k, v in reduced_info.items())
             pbar.write(f"Step {step}: {info_str}")
