@@ -213,13 +213,10 @@ def main(args: Args):
     
     for ep_path in tqdm(episodes, desc="Processing"):
         ep_name = os.path.basename(ep_path)
-        try:
-            pred, gt = run_inference(policy, ep_path, args)
-            if len(pred) > 0:
-                plot_results(pred, gt, ep_name, str(output_dir / f"{ep_name}.jpg"))
-                logging.info(f"Saved {ep_name}")
-        except Exception as e:
-            logging.error(f"Error on {ep_name}: {e}")
+        pred, gt = run_inference(policy, ep_path, args)
+        if len(pred) > 0:
+            plot_results(pred, gt, ep_name, str(output_dir / f"{ep_name}.jpg"))
+            logging.info(f"Saved {ep_name}")
     
     logging.info(f"Done! Results in {output_dir}")
 

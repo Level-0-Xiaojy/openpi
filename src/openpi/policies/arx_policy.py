@@ -109,12 +109,13 @@ class ArxInputs(transforms.DataTransformFn):
             inputs["image_mask"]["base_0_rgb"] = np.False_
             inputs["image_mask"]["left_wrist_0_rgb"] = np.False_
             inputs["state"][..., :7] = 0.
-            inputs["actions"][..., :7] = 0.
             if self.mode in ["sm2m", "sm2sm"]:
                 inputs["state"][..., 14:21] = 0.
-            if self.mode == "sm2sm":
-                inputs["actions"][..., 14:21] = 0.
-
+            if "actions" in inputs:
+                inputs["actions"][..., :7] = 0.
+                if self.mode == "sm2sm":
+                    inputs["actions"][..., 14:21] = 0.
+            
         return inputs
 
     def _mask_states(self, state: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
