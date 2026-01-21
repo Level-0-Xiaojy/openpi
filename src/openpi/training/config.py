@@ -1338,7 +1338,7 @@ _CONFIGS = [
             repo_id="pipeline_0120_s2m", # Multiple datasets separated by comma
             mode="s2m",
             action_dim=14,
-            # only_right_obs=True,
+            only_right_obs=True,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
@@ -1347,8 +1347,56 @@ _CONFIGS = [
         num_train_steps=30_000,
         save_interval=10_000,
         save_full_state=False,
+        valid=False,
     ),
-
+    TrainConfig(
+        name="pipeline_sm2m",
+        model=pi0_config.Pi0Config(action_horizon=30),
+        data=LeRobotX2robotDataConfig(
+            repo_id="pipeline_0120_sm2m", # Multiple datasets separated by comma
+            mode="sm2m",
+            state_history_size=9,
+            state_future_size=3,
+            only_right_obs=True,
+            action_dim=14,
+            random_drop_master=0.10,
+            random_drop_history=0.50,
+            random_drop_future=0.75,
+            random_pos_offset=0.030,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="pipeline_0120_sm2m_h9f3oro_a30_dm10dh50df75po30",
+        batch_size=16,
+        num_train_steps=30_000,
+        save_interval=10_000,
+        save_full_state=False,
+        valid=False,
+    ),
+    TrainConfig(
+        name="plugusb_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=30),
+        data=LeRobotX2robotDataConfig(
+            repo_id="plugusb_0119_sm2sm,plugusb_0120_sm2sm", # Multiple datasets separated by comma
+            mode="sm2sm",
+            state_history_size=9,
+            state_future_size=3,
+            only_right_obs=True,
+            action_dim=28,
+            random_drop_master=0.10,
+            random_drop_history=0.50,
+            random_drop_future=0.75,
+            random_pos_offset=0.030,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="plugusb_0119+0120_sm2sm_h9f3oro_a30_dm10dh50df75po30",
+        batch_size=16,
+        num_train_steps=30_000,
+        save_interval=10_000,
+        save_full_state=False,
+        valid=False,
+    ),
     # RoboArena & PolaRiS configs.
     *roboarena_config.get_roboarena_configs(),
     *polaris_config.get_polaris_configs(),
