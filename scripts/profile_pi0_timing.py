@@ -1,8 +1,5 @@
 """Profile Pi0 model timing: prefix vs denoise breakdown using JAX profiler."""
 
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
-
 import dataclasses
 import logging
 import time
