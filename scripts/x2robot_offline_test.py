@@ -1,8 +1,6 @@
 """Offline evaluation for X2Robot: inference and plot pred vs GT."""
 
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
-
 import dataclasses
 import glob
 import json
