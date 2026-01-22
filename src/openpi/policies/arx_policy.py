@@ -108,13 +108,14 @@ class ArxInputs(transforms.DataTransformFn):
         if self.only_right_obs:
             inputs["image_mask"]["base_0_rgb"] = np.False_
             inputs["image_mask"]["left_wrist_0_rgb"] = np.False_
-            inputs["state"][..., :7] = 0.
-            if self.mode in ["sm2m", "sm2sm"]:
-                inputs["state"][..., 14:21] = 0.
-            if "actions" in inputs:
-                inputs["actions"][..., :7] = 0.
-                if self.mode == "sm2sm":
-                    inputs["actions"][..., 14:21] = 0.
+            if self.slave_state_dim == 14:  # (left + right) x (pos + rot + gripper)
+                inputs["state"][..., :7] = 0.
+                if self.mode in ["sm2m", "sm2sm"]:
+                    inputs["state"][..., 14:21] = 0.
+                if "actions" in inputs:
+                    inputs["actions"][..., :7] = 0.
+                    if self.mode == "sm2sm":
+                        inputs["actions"][..., 14:21] = 0.
             
         return inputs
 

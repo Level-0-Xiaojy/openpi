@@ -38,7 +38,7 @@ os.environ['SVT_LOG'] = '0'
 
 
 # Configuration
-REPO_NAME = "plugusb_0119+0120+0121_s2m"
+REPO_NAME = "plugusb_0119+0120+0121_sm2sm_jr"
 RAW_DATASET_PATHS = [
     './datasets/x2robot/plugusb_0119/',
     './datasets/x2robot/plugusb_0120/',
@@ -52,18 +52,20 @@ FILE_CAMERA_MAPPING = {
 }
 
 STATE_KEYS = [
-    'follow_left_position',
-    'follow_left_rotation', 
-    'follow_left_gripper',
-    'follow_right_position',
-    'follow_right_rotation',
-    'follow_right_gripper',
+    # 'follow_left_position',
+    # 'follow_left_rotation', 
+    # 'follow_left_gripper',
+    # 'follow_right_position',
+    # 'follow_right_rotation',
+    'follow_right_joint_pos',
+    'follow_right_gripper',   
     # 'master_left_position',
     # 'master_left_rotation',
     # 'master_left_gripper', 
     # 'master_right_position',
     # 'master_right_rotation',
-    # 'master_right_gripper',
+    'master_right_joint_pos',
+    'master_right_gripper',
 ]
 
 ACTION_KEYS = [
@@ -72,12 +74,15 @@ ACTION_KEYS = [
     # 'follow_left_gripper',
     # 'follow_right_position',
     # 'follow_right_rotation',
-    # 'follow_right_gripper',
-    'master_left_position',
-    'master_left_rotation',
-    'master_left_gripper', 
-    'master_right_position',
-    'master_right_rotation',
+    'follow_right_joint_pos',
+    'follow_right_gripper',
+    
+    # 'master_left_position',
+    # 'master_left_rotation',
+    # 'master_left_gripper', 
+    # 'master_right_position',
+    # 'master_right_rotation',
+    'master_right_joint_pos',
     'master_right_gripper',
 ]
 
@@ -92,6 +97,8 @@ def get_dim_from_keys(keys: list[str]) -> int:
             dim += 3
         elif 'rotation' in key:
             dim += 3
+        elif 'joint' in key:
+            dim += 7
         else:
             raise ValueError(f"Unknown key type: {key}")
     return dim

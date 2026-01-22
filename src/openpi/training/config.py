@@ -1299,20 +1299,21 @@ _CONFIGS = [
     ),
     TrainConfig(
         name="plugusb_s2m",
-        model=pi0_config.Pi0Config(action_horizon=30),
+        model=pi0_config.Pi0Config(action_horizon=20),
         data=LeRobotX2robotDataConfig(
-            repo_id="plugusb_0119_s2m", # Multiple datasets separated by comma
+            repo_id="plugusb_0119+0120+0121_s2m", # Multiple datasets separated by comma
             mode="s2m",
-            action_dim=14,
             only_right_obs=True,
+            action_dim=14,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
-        exp_name="plugusb_0119_s2m_a30_oro",
+        exp_name="plugusb_0119+0120+0121_s2m_oro_a20",
         batch_size=16,
         num_train_steps=30_000,
         save_interval=10_000,
         save_full_state=False,
+        valid=False,
     ),
     TrainConfig(
         name="plugusb_sm2m",
@@ -1330,6 +1331,50 @@ _CONFIGS = [
         num_train_steps=30_000,
         save_interval=10_000,
         save_full_state=False,
+    ),
+    TrainConfig(
+        name="plugusb_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            repo_id="plugusb_0119+0120+0121_sm2sm", # Multiple datasets separated by comma
+            mode="sm2sm",
+            state_history_size=9,
+            only_right_obs=True,
+            action_dim=28,
+            random_drop_master=0.10,
+            random_drop_history=0.30,
+            random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="plugusb_0119+0120+0121_sm2sm_h9oro_a20_dm10dh30po20",
+        batch_size=16,
+        num_train_steps=30_000,
+        save_interval=10_000,
+        save_full_state=False,
+        valid=False,
+    ),
+    TrainConfig(
+        name="plugusb_sm2sm_jr",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            repo_id="plugusb_0119+0120+0121_sm2sm_jr", # Multiple datasets separated by comma
+            mode="sm2sm",
+            slave_state_dim=8,
+            state_history_size=9,
+            only_right_obs=True,
+            action_dim=16,
+            random_drop_master=0.10,
+            random_drop_history=0.30,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="plugusb_0119+0120+0121_sm2sm_jr_h9oro_a20_dm10dh30",
+        batch_size=16,
+        num_train_steps=30_000,
+        save_interval=10_000,
+        save_full_state=False,
+        valid=False,
     ),
     TrainConfig(
         name="pipeline_s2m",
@@ -1367,30 +1412,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="pipeline_0120_sm2m_h9f3oro_a30_dm10dh50df75po30",
-        batch_size=16,
-        num_train_steps=30_000,
-        save_interval=10_000,
-        save_full_state=False,
-        valid=False,
-    ),
-    TrainConfig(
-        name="plugusb_sm2sm",
-        model=pi0_config.Pi0Config(action_horizon=30),
-        data=LeRobotX2robotDataConfig(
-            repo_id="plugusb_0119_sm2sm,plugusb_0120_sm2sm", # Multiple datasets separated by comma
-            mode="sm2sm",
-            state_history_size=9,
-            state_future_size=3,
-            only_right_obs=True,
-            action_dim=28,
-            random_drop_master=0.10,
-            random_drop_history=0.50,
-            random_drop_future=0.75,
-            random_pos_offset=0.030,
-        ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
-        
-        exp_name="plugusb_0119+0120_sm2sm_h9f3oro_a30_dm10dh50df75po30",
         batch_size=16,
         num_train_steps=30_000,
         save_interval=10_000,
