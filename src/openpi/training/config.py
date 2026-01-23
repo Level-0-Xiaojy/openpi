@@ -601,7 +601,7 @@ class TrainConfig:
     # Random seed that will be used by random generators during training.
     seed: int = 42
     # Global batch size.
-    batch_size: int = 32
+    batch_size: int = 16
     # Number of workers to use for the data loader. Increasing this number will speed up data loading but
     # will increase memory and CPU usage.
     num_workers: int = 2
@@ -611,7 +611,7 @@ class TrainConfig:
     # How often (in steps) to log training metrics.
     log_interval: int = 100
     # How often (in steps) to save checkpoints.
-    save_interval: int = 1000
+    save_interval: int = 10000
     # If set, any existing checkpoints matching step % keep_period == 0 will not be deleted.
     keep_period: int | None = 5000
 
@@ -625,11 +625,11 @@ class TrainConfig:
 
     # If true, will create validation data loader and run validation during training.
     # If false, will use all data for training without validation.
-    valid: bool = True
+    valid: bool = False
 
     # If true, will save full training state (including optimizer state and EMA params).
     # If false, will only save model parameters to reduce checkpoint size.
-    save_full_state: bool = True
+    save_full_state: bool = False
 
     # Used to pass metadata to the policy server.
     policy_metadata: dict[str, Any] | None = None
@@ -1085,47 +1085,16 @@ _CONFIGS = [
         wandb_enabled=False,
     ),
     TrainConfig(
-        name="microwave_1218",
-        model=pi0_config.Pi0Config(),
+        name="microwave_s2s",
+        model=pi0_config.Pi0Config(action_horizon=30),
         data=LeRobotX2robotDataConfig(
-            repo_id="microwave_1218", # dataset repo
+            repo_id="microwave_1218+0109_s2s", # dataset repo
+            mode="s2s",
+            action_dim=14,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
-        exp_name="microwave_1218",
-        batch_size=8,
-        num_train_steps=30_000,
-        save_full_state=False,
-    ),
-    TrainConfig(
-        name="microwave_1218_lora",
-        model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
-        data=LeRobotX2robotDataConfig(
-            repo_id="microwave_1218", # dataset repo
-        ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
-        exp_name="microwave_1218_lora",
-        batch_size=8,
-        num_train_steps=30_000,
-        freeze_filter=pi0_config.Pi0Config(
-            paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
-        ).get_freeze_filter(),
-        ema_decay=None,
-    ),
-    TrainConfig(
-        name="microwave_1218_sm2sm",
-        model=pi0_config.Pi0Config(),
-        data=LeRobotX2robotDataConfig(
-            repo_id="microwave_1218_sm2sm", # dataset repo
-            action_dim=26,
-        ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
-        
-        exp_name="microwave_1218_sm2sm",
-        batch_size=8,
-        num_train_steps=30_000,
-        save_interval=10_000,
-        save_full_state=False,
+        exp_name="microwave_1218+0109_s2s_a30",
     ),
     TrainConfig(
         name="plugin_s2m",
@@ -1139,10 +1108,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="plugin_1227+0107+0110_s2m_a30_oro",
-        batch_size=16,
-        num_train_steps=30_000,
-        save_interval=10_000,
-        save_full_state=False,
     ),
     TrainConfig(
         name="plugin_sm2m",
@@ -1158,10 +1123,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="plugin_1227+0107+0110_sm2m_a30_dm50_po20_oro",
-        batch_size=16,
-        num_train_steps=30_000,
-        save_interval=10_000,
-        save_full_state=False,
     ),
     TrainConfig(
         name="plugin_sm2sm",
@@ -1173,10 +1134,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="plugin_1227+0107+0110_sm2sm",
-        batch_size=16,
-        num_train_steps=30_000,
-        save_interval=10_000,
-        save_full_state=False,
     ),
     TrainConfig(
         name="plugin_sm2sm_delta",
@@ -1189,10 +1146,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="plugin_1227+0107+0110_sm2sm_delta",
-        batch_size=16,
-        num_train_steps=30_000,
-        save_interval=10_000,
-        save_full_state=False,
     ),
     TrainConfig(
         name="plugin_sm2sm_seq",
@@ -1207,10 +1160,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="plugin_1227+0107+0110_sm2sm_h5f3mhs",
-        batch_size=16,
-        num_train_steps=30_000,
-        save_interval=10_000,
-        save_full_state=False,
     ),
     TrainConfig(
         name="throw_sm2m",
@@ -1225,10 +1174,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="throw_0113+0114_sm2m_h0f1s3",
-        batch_size=16,
-        num_train_steps=30_000,
-        save_interval=10_000,
-        save_full_state=False,
     ),
     TrainConfig(
         name="tpplugin_s2m",
@@ -1240,10 +1185,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="tpplugin_0115_s2m",
-        batch_size=16,
-        num_train_steps=30_000,
-        save_interval=10_000,
-        save_full_state=False,
     ),
     TrainConfig(
         name="tpplugin_sm2m",
@@ -1256,10 +1197,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="tpplugin_0115_sm2m_dm50",
-        batch_size=16,
-        num_train_steps=30_000,
-        save_interval=10_000,
-        save_full_state=False,
     ),
     TrainConfig(
         name="hitball_s2m",
@@ -1273,10 +1210,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="hitball_0118s_s2m_a20",
-        batch_size=16,
-        num_train_steps=20_000,
-        save_interval=10_000,
-        save_full_state=False,
     ),
     TrainConfig(
         name="hitball_sm2m",
@@ -1292,10 +1225,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="hitball_0118s_sm2m_a20_h5f3",
-        batch_size=16,
-        num_train_steps=20_000,
-        save_interval=10_000,
-        save_full_state=False,
     ),
     TrainConfig(
         name="plugusb_s2m",
@@ -1309,11 +1238,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="plugusb_0119+0120+0121_s2m_oro_a20",
-        batch_size=16,
-        num_train_steps=30_000,
-        save_interval=10_000,
-        save_full_state=False,
-        valid=False,
     ),
     TrainConfig(
         name="plugusb_sm2m",
@@ -1327,10 +1251,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="plugusb_0119_sm2m_a30_oro",
-        batch_size=16,
-        num_train_steps=30_000,
-        save_interval=10_000,
-        save_full_state=False,
     ),
     TrainConfig(
         name="plugusb_sm2sm",
@@ -1348,11 +1268,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="plugusb_0119+0120+0121_sm2sm_h9oro_a20_dm10dh30po20",
-        batch_size=16,
-        num_train_steps=30_000,
-        save_interval=10_000,
-        save_full_state=False,
-        valid=False,
     ),
     TrainConfig(
         name="plugusb_sm2sm_jr",
@@ -1370,29 +1285,32 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="plugusb_0119+0120+0121_sm2sm_jr_h9oro_a20_dm10dh30",
-        batch_size=16,
-        num_train_steps=30_000,
-        save_interval=10_000,
-        save_full_state=False,
-        valid=False,
+    ),
+    TrainConfig(
+        name="pipeline_s2s",
+        model=pi0_config.Pi0Config(action_horizon=30),
+        data=LeRobotX2robotDataConfig(
+            repo_id="pipeline_0120+0121_s2s", # Multiple datasets separated by comma
+            mode="s2s",
+            action_dim=14,
+            only_right_obs=True,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="pipeline_0120+0121_s2s_oro_a30",
     ),
     TrainConfig(
         name="pipeline_s2m",
         model=pi0_config.Pi0Config(action_horizon=30),
         data=LeRobotX2robotDataConfig(
-            repo_id="pipeline_0120_s2m", # Multiple datasets separated by comma
+            repo_id="pipeline_0120+0121_s2m", # Multiple datasets separated by comma
             mode="s2m",
             action_dim=14,
             only_right_obs=True,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
-        exp_name="pipeline_0120_s2m_a30_oro",
-        batch_size=16,
-        num_train_steps=30_000,
-        save_interval=10_000,
-        save_full_state=False,
-        valid=False,
+        exp_name="pipeline_0120+0121_s2m_a30_oro",
     ),
     TrainConfig(
         name="pipeline_sm2m",
@@ -1412,11 +1330,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="pipeline_0120_sm2m_h9f3oro_a30_dm10dh50df75po30",
-        batch_size=16,
-        num_train_steps=30_000,
-        save_interval=10_000,
-        save_full_state=False,
-        valid=False,
     ),
     # RoboArena & PolaRiS configs.
     *roboarena_config.get_roboarena_configs(),
