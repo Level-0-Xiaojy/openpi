@@ -1331,6 +1331,51 @@ _CONFIGS = [
         
         exp_name="pipeline_0120_sm2m_h9f3oro_a30_dm10dh50df75po30",
     ),
+    TrainConfig(
+        name="wipe_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=30),
+        data=LeRobotX2robotDataConfig(
+            repo_id="wipe_0126_sm2sm", # Multiple datasets separated by comma
+            mode="sm2sm",
+            state_history_size=9,
+            state_future_size=2,
+            only_right_obs=True,
+            action_dim=28,
+            random_drop_master=0.10,
+            random_drop_history=0.50,
+            random_drop_future=0.50,
+            random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="wipe_0126_sm2sm_h9f2oro_a30_dm10dh50df50po20",
+    ),
+    TrainConfig(
+        name="wipe_s2m",
+        model=pi0_config.Pi0Config(action_horizon=30),
+        data=LeRobotX2robotDataConfig(
+            repo_id="wipe_0126_s2m", # Multiple datasets separated by comma
+            mode="s2m",
+            only_right_obs=True,
+            action_dim=14,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="wipe_0126_s2m_oro_a30",
+    ),
+    TrainConfig(
+        name="wipe_s2s",
+        model=pi0_config.Pi0Config(action_horizon=30),
+        data=LeRobotX2robotDataConfig(
+            repo_id="wipe_0126_s2s", # Multiple datasets separated by comma
+            mode="s2s",
+            only_right_obs=True,
+            action_dim=14,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="wipe_0126_s2s_oro_a30",
+    ),
     # RoboArena & PolaRiS configs.
     *roboarena_config.get_roboarena_configs(),
     *polaris_config.get_polaris_configs(),
