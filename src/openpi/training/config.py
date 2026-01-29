@@ -1162,18 +1162,40 @@ _CONFIGS = [
         exp_name="plugin_1227+0107+0110_sm2sm_h5f3mhs",
     ),
     TrainConfig(
+        name="throw_s2s",
+        model=pi0_config.Pi0Config(),
+        data=LeRobotX2robotDataConfig(
+            repo_id="throw_0113+0114_s2s",
+            mode="s2s",
+            action_dim=14,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="throw_0113+0114_s2s",
+    ),
+    TrainConfig(
+        name="throw_s2m",
+        model=pi0_config.Pi0Config(),
+        data=LeRobotX2robotDataConfig(
+            repo_id="throw_0113+0114_s2m",
+            mode="s2m",
+            action_dim=14,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="throw_0113+0114_s2m",
+    ),
+    TrainConfig(
         name="throw_sm2m",
         model=pi0_config.Pi0Config(),
         data=LeRobotX2robotDataConfig(
             repo_id="throw_0113_sm2m,throw_0114_sm2m",
+            mode="sm2m",
             action_dim=14,
-            state_history_size=0,
-            state_future_size=1,
-            state_step=3,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
-        exp_name="throw_0113+0114_sm2m_h0f1s3",
+        exp_name="throw_0113+0114_sm2m",
     ),
     TrainConfig(
         name="tpplugin_s2m",
@@ -1335,7 +1357,7 @@ _CONFIGS = [
         name="wipe_sm2sm",
         model=pi0_config.Pi0Config(action_horizon=30),
         data=LeRobotX2robotDataConfig(
-            repo_id="wipe_0126_sm2sm", # Multiple datasets separated by comma
+            repo_id="wipe_0129_sm2sm", # Multiple datasets separated by comma
             mode="sm2sm",
             state_history_size=9,
             state_future_size=2,
@@ -1348,20 +1370,20 @@ _CONFIGS = [
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
-        exp_name="wipe_0126_sm2sm_h9f2oro_a30_dm10dh50df50po20",
+        exp_name="wipe_0129_sm2sm_h9f2oro_a30_dm10dh50df50po20",
     ),
     TrainConfig(
         name="wipe_s2m",
         model=pi0_config.Pi0Config(action_horizon=30),
         data=LeRobotX2robotDataConfig(
-            repo_id="wipe_0126_s2m", # Multiple datasets separated by comma
+            repo_id="wipe_0129_s2m", # Multiple datasets separated by comma
             mode="s2m",
             only_right_obs=True,
             action_dim=14,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
-        exp_name="wipe_0126_s2m_oro_a30",
+        exp_name="wipe_0129_s2m_oro_a30",
     ),
     TrainConfig(
         name="wipe_s2s",
@@ -1375,6 +1397,34 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="wipe_0126_s2s_oro_a30",
+    ),
+    TrainConfig(
+        name="blindplug_s2m",
+        model=pi0_config.Pi0Config(action_horizon=30),
+        data=LeRobotX2robotDataConfig(
+            repo_id="blindplug_0129_s2m", # Multiple datasets separated by comma
+            mode="s2m",
+            only_right_obs=True,
+            action_dim=28,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="blindplug_0129_s2m_oro_a30",
+    ),
+    TrainConfig(
+        name="blindplug_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=30),
+        data=LeRobotX2robotDataConfig(
+            repo_id="blindplug_0129_sm2sm", # Multiple datasets separated by comma
+            mode="sm2sm",
+            # state_history_size=9,
+            # state_future_size=2,
+            only_right_obs=True,
+            action_dim=28,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
+        
+        exp_name="blindplug_0129_sm2sm_oro_a30",
     ),
     # RoboArena & PolaRiS configs.
     *roboarena_config.get_roboarena_configs(),
