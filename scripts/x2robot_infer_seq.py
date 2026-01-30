@@ -28,6 +28,7 @@ class Args:
     state_step: int = None
     move_steps: int = 15
     only_right_arm: bool = False
+    latency_step: int = None
 
 def _load_norm_stats(policy_config: str, policy_dir: str) -> dict | None:
     train_config = _config.get_config(policy_config)
@@ -73,6 +74,9 @@ def main(args: Args) -> None:
     if args.state_step is None:
         args.state_step = getattr(cfg.data, 'state_step', 1)
         logging.info(f"Using state_step from config: {args.state_step}")
+    if args.latency_step is None:
+        args.latency_step = args.state_future_size
+        logging.info(f"Using latency_step equal to state_future_size: {args.latency_step}")
     
     # Load policy
     logging.info(f"Loading policy from {args.policy_dir}")
@@ -80,6 +84,7 @@ def main(args: Args) -> None:
     norm_stats = _load_norm_stats(args.policy_config, args.policy_dir)
 
     state_seq_len = args.state_history_size + 1 + args.state_future_size
+    latency_len = args.state_history_size + 1 + args.latency_step
     master_queue = deque(maxlen=100)  # queue_len * 14
     
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -110,20 +115,26 @@ def main(args: Args) -> None:
         camera_front = np.array(image2).reshape(h, w, c)
         camera_left = np.array(image1).reshape(h, w, c)
         camera_right = np.array(image3).reshape(h, w, c)
-
+        
+        state = np.zeros((state_seq_len, 32), dtype=np.float32)
         slave_state = np.concatenate([left_agent_data, right_agent_data], axis=1) # (state_history_size + 1, 14)
         slave_state = np.concatenate([slave_state] + [slave_state[-1:]] * args.state_future_size)
+
         if not master_queue:
-            master_queue.append(slave_state[-1])
-        master_list = list(master_queue)[-state_seq_len:]
-        if len(master_list) < state_seq_len:
-            master_list = [master_list[0]] * (state_seq_len - len(master_list)) + master_list
+            master_queue.extend([slave_state[-1]] * max(state_seq_len, latency_len))
+        
+        master_list = list(master_queue)[-latency_len:]
+        if args.latency_step < args.state_future_size:  # inpainting mode
+            master_list = master_list + [master_list[-1]] * (args.state_future_size - args.latency_step)
+            state[args.latency_step - args.state_future_size:, -1] = 1.0
+        else:  # naive async
+            master_list = master_list[:state_seq_len]
         master_state = np.array(master_list)
 
         if args.policy_mode in ["s2s", "s2m"]:
-            state = slave_state
+            state[:, :14] = slave_state
         else:
-            state = np.concatenate([slave_state, master_state], axis=1)
+            state[:, :28] = np.concatenate([slave_state, master_state], axis=1)
 
         if args.only_right_arm:
             mean = np.asarray(norm_stats["state"].mean)
@@ -146,7 +157,7 @@ def main(args: Args) -> None:
             _, master_action = action_pred[:, :14], action_pred[:, 14:28]
             action_pred = master_action
         
-        action_pred = action_pred[args.state_future_size:]
+        action_pred = action_pred[args.latency_step:]
         action_pred = action_pred[:args.move_steps, ...]  # (move_steps, 14)
         action_pred = np.concatenate([[master_queue[-1]], action_pred])
         for action in action_pred[1:]:

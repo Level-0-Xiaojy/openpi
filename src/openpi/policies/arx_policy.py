@@ -125,7 +125,10 @@ class ArxInputs(transforms.DataTransformFn):
         current_idx = self.state_history_size
         current_slave = state[current_idx, :self.slave_state_dim]
         current_state = state[current_idx]
-        master_mask = np.zeros((state.shape[0],), dtype=state.dtype)
+        if state.shape[-1] == 32:
+            master_mask = state[:, -1]
+        else:
+            master_mask = np.zeros((state.shape[0],), dtype=state.dtype)
 
         if self.state_future_size > 0:  # always mask future slave states
             state[current_idx + 1:, :self.slave_state_dim] = current_slave
