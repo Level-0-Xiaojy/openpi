@@ -19,6 +19,7 @@ import openpi.models.pi05_config as pi05_config
 import openpi.models.pi0_fast as pi0_fast
 import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
+import openpi.policies.arx_policy as arx_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.franka_policy as franka_policy
 import openpi.policies.libero_policy as libero_policy
@@ -539,6 +540,52 @@ class LeRobotFrankaDataConfig(DataConfigFactory):
             data_transforms=data_transforms,
             model_transforms=model_transforms,
             action_sequence_keys=("action",),  # Dataset uses 'action' (singular), not 'actions'
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotX2robotDataConfig(DataConfigFactory):
+    """Data config for ARX (X2Robot) dual-arm robot datasets in LeRobot format.
+
+    Expects 3 cameras (face_view, left_wrist_view, right_wrist_view),
+    14-dim state and 14-dim actions (7 per arm: position(3) + rotation(3) + gripper(1)).
+    """
+
+    default_prompt: str | None = None
+
+    repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
+        default=_transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "images": {
+                            "left_wrist_view": "left_wrist_view",
+                            "face_view": "face_view",
+                            "right_wrist_view": "right_wrist_view",
+                        },
+                        "state": "state",
+                        "actions": "actions",
+                        "prompt": "task",
+                    }
+                )
+            ]
+        )
+    )
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        data_transforms = _transforms.Group(
+            inputs=[arx_policy.ArxInputs(model_type=model_config.model_type)],
+            outputs=[arx_policy.ArxOutputs()],
+        )
+
+        model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=self.repack_transforms,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
         )
 
 
@@ -1123,6 +1170,35 @@ _CONFIGS = [
         ).get_freeze_filter(),
         # Disable EMA for LoRA
         ema_decay=None,
+    ),
+    #
+    # Fine-tuning X2Robot (ARX) configs.
+    #
+    TrainConfig(
+        name="pi0_x2robot_place_goods",
+        batch_size=8,
+        exp_name="place_goods_run_1",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        data=LeRobotX2robotDataConfig(
+            repo_id="place_goods",
+            base_config=DataConfig(asset_id="place_goods"),
+            default_prompt="Put the goods on your left into the bag on your right.",
+        ),
+        num_train_steps=30_000,
+    ),
+    TrainConfig(
+        name="pi05_x2robot_place_goods",
+        batch_size=8,
+        exp_name="place_goods_run_1",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=20),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        data=LeRobotX2robotDataConfig(
+            repo_id="place_goods",
+            base_config=DataConfig(asset_id="place_goods"),
+            default_prompt="Put the goods on your left into the bag on your right.",
+        ),
+        num_train_steps=30_000,
     ),
     #
     # ALOHA Sim configs. This config is used to demonstrate how to train on a simple simulated environment.

@@ -182,10 +182,53 @@ If you want to embed a policy server call in your own robot runtime, we have a m
 
 ### More Examples
 
-We provide more examples for how to fine-tune and run inference with our models on the ALOHA platform in the following READMEs:
+We provide more examples for how to fine-tune and run inference with our models on various robot platforms:
 - [ALOHA Simulator](examples/aloha_sim)
 - [ALOHA Real](examples/aloha_real)
 - [UR5](examples/ur5)
+- [X2Robot (ARX)](#x2robot-arx-dual-arm-robot)
+
+### X2Robot (ARX) Dual-Arm Robot
+
+We support fine-tuning on data collected with the ARX (X2Robot) dual-arm robot. The robot uses 3 cameras (`face_view`, `left_wrist_view`, `right_wrist_view`) and 14-dimensional state/action vectors (7 per arm: position + rotation + gripper).
+
+#### 1. Convert raw X2Robot data to LeRobot format
+
+Raw X2Robot data (episode directories containing `faceImg.mp4`, `leftImg.mp4`, `rightImg.mp4`, and a JSON file with action trajectories) can be converted using the provided script:
+
+```bash
+uv run examples/x2robot/convert_x2robot_data_to_lerobot.py \
+    --raw-dirs /path/to/raw/episodes \
+    --repo-name place_goods \
+    --cache-dir /path/to/lerobot_datasets \
+    --task "Put the goods on your left into the bag on your right."
+```
+
+The `--cache-dir` sets the `HF_LEROBOT_HOME` directory where the converted LeRobot dataset will be saved.
+
+#### 2. Compute normalization statistics
+
+```bash
+HF_LEROBOT_HOME=/path/to/lerobot_datasets uv run scripts/compute_norm_stats.py --config-name pi0_x2robot_place_goods --max_frames 10000
+```
+
+#### 3. Run training
+
+```bash
+HF_LEROBOT_HOME=/path/to/lerobot_datasets XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 uv run scripts/train.py pi0_x2robot_place_goods --exp-name=my_experiment --overwrite
+```
+
+We provide two pre-defined configs: `pi0_x2robot_place_goods` (fine-tune from pi0 base) and `pi05_x2robot_place_goods` (fine-tune from pi0.5 base). To fine-tune on your own X2Robot dataset, add a new `TrainConfig` entry in [`src/openpi/training/config.py`](src/openpi/training/config.py) using `LeRobotX2robotDataConfig` with your dataset's `repo_id`.
+
+#### 4. Run inference on the robot
+
+```bash
+uv run scripts/x2robot_infer.py policy:checkpoint \
+    --policy.config=pi0_x2robot_place_goods \
+    --policy.dir=./checkpoints/pi0_x2robot_place_goods/my_experiment/30000
+```
+
+This starts a TCP socket server that receives observations from the robot and sends back interpolated actions.
 
 ## PyTorch Support
 
