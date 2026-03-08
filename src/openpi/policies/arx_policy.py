@@ -37,6 +37,8 @@ class ArxInputs(transforms.DataTransformFn):
     random_drop_future: float = 0.
     random_pos_offset: float = 0.
     only_right_obs: bool = False
+    unified_input: bool = False
+    individual_keys: bool = False
 
     EXPECTED_CAMERAS: ClassVar[tuple[str, ...]] = ("left_wrist_view", "face_view", "right_wrist_view")
 

@@ -219,6 +219,23 @@ class SimpleDataConfig(DataConfigFactory):
         )
     
 
+def _individual_keys_repack() -> _transforms.Group:
+    """Repack for datasets with individual component keys + pre-concatenated actions."""
+    mapping: dict = {
+        "images": {
+            "left_wrist_view": "left_wrist_view",
+            "face_view": "face_view",
+            "right_wrist_view": "right_wrist_view",
+        },
+        "actions": "actions",
+        "actions_is_pad": "actions_is_pad",
+        "prompt": "task",
+    }
+    for k in arx_policy.ALL_COMPONENT_KEYS:
+        mapping[k] = k
+    return _transforms.Group(inputs=[_transforms.RepackTransform(mapping)])
+
+
 @dataclasses.dataclass(frozen=True)
 class LeRobotX2robotDataConfig(DataConfigFactory):
     mode: str = None
@@ -234,6 +251,11 @@ class LeRobotX2robotDataConfig(DataConfigFactory):
     random_drop_future: float = 0.
     random_pos_offset: float = 0.
     only_right_obs: bool = False
+    # When True, expects 28-D unified state/actions and slices based on mode in ArxInputs.
+    unified_input: bool = False
+    # When True, expects individual component keys in the dataset.
+    # State is constructed from component keys; 28-D actions column is sliced by mode.
+    individual_keys: bool = False
    
     @property
     def state_sequence_length(self) -> int:
@@ -263,6 +285,8 @@ class LeRobotX2robotDataConfig(DataConfigFactory):
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         assert self.mode in ["s2s", "s2m", "sm2m", "sm2sm"], f"Invalid mode: {self.mode}"
 
+        repack = _individual_keys_repack() if self.individual_keys else self.repack_transforms
+
         data_transforms = _transforms.Group(
             inputs=[arx_policy.ArxInputs(
                 mode=self.mode,
@@ -277,6 +301,8 @@ class LeRobotX2robotDataConfig(DataConfigFactory):
                 random_drop_future=self.random_drop_future,
                 random_pos_offset=self.random_pos_offset,
                 only_right_obs=self.only_right_obs,
+                unified_input=self.unified_input,
+                individual_keys=self.individual_keys,
             )],
             outputs=[arx_policy.ArxOutputs(action_dim=self.action_dim)],
         )
@@ -293,7 +319,7 @@ class LeRobotX2robotDataConfig(DataConfigFactory):
         base_config = self.create_base_config(assets_dirs, model_config)
         
         # Fix zero-variance dimensions in norm_stats if configured
-        if self.random_drop_master > 0. or self.random_drop_future > 0.:
+        if (self.random_drop_master > 0. or self.random_drop_future > 0.) and base_config.norm_stats is not None:
             import numpy as np
     
             norm_stats = dict(base_config.norm_stats)  # Shallow copy of dict
@@ -315,7 +341,7 @@ class LeRobotX2robotDataConfig(DataConfigFactory):
 
         return dataclasses.replace(
             base_config,
-            repack_transforms=self.repack_transforms,
+            repack_transforms=repack,
             data_transforms=data_transforms,
             model_transforms=model_transforms,
             state_history_size=self.state_history_size,
@@ -611,7 +637,7 @@ class TrainConfig:
     # How often (in steps) to log training metrics.
     log_interval: int = 100
     # How often (in steps) to save checkpoints.
-    save_interval: int = 10000
+    save_interval: int = 1000
     # If set, any existing checkpoints matching step % keep_period == 0 will not be deleted.
     keep_period: int | None = 5000
 
@@ -638,7 +664,7 @@ class TrainConfig:
     # device memory will be reduced but training could potentially be slower.
     # eg. if total device is 4 and fsdp devices is 2; then the model will shard to 2 devices and run
     # data parallel between 2 groups of devices.
-    fsdp_devices: int = 1
+    fsdp_devices: int = 4
 
     @property
     def assets_dirs(self) -> pathlib.Path:
@@ -1479,6 +1505,123 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/root/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"),
         
         exp_name="blindplug_0129_sm2sm_h3f2oro_a30_dm10dh50df50po20",
+    ),
+    #
+    # place_goods configs (joint_pos + gripper, 16-D state/actions).
+    # Layout: follow_right_joint_pos[7] + follow_right_gripper[1]
+    #       + master_right_joint_pos[7] + master_right_gripper[1]
+    #
+    TrainConfig(
+        name="pi0_place_goods_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=30),
+        data=LeRobotX2robotDataConfig(
+            repo_id="place_goods_sm2sm",
+            mode="sm2sm",
+            slave_state_dim=8,
+            action_dim=16,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "/mnt/project_rlinf/gaofeng/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"
+        ),
+        exp_name="place_goods_sm2sm_a30",
+        num_train_steps=30_000,
+    ),
+    TrainConfig(
+        name="pi05_place_goods_sm2sm",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=30),
+        data=LeRobotX2robotDataConfig(
+            repo_id="place_goods_sm2sm",
+            mode="sm2sm",
+            slave_state_dim=8,
+            action_dim=16,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "/mnt/project_rlinf/gaofeng/.cache/openpi/openpi-assets/checkpoints/pi05_base/params"
+        ),
+        exp_name="place_goods_sm2sm_a30",
+        num_train_steps=30_000,
+        batch_size=128,
+    ),
+    TrainConfig(
+        name="pi0_place_goods_sm2sm_seq",
+        model=pi0_config.Pi0Config(action_horizon=30),
+        data=LeRobotX2robotDataConfig(
+            repo_id="place_goods_sm2sm",
+            mode="sm2sm",
+            slave_state_dim=8,
+            action_dim=16,
+            state_history_size=5,
+            state_future_size=3,
+            mask_history_slave_states=True,
+            random_drop_master=0.10,
+            random_drop_history=0.50,
+            random_drop_future=0.50,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "/mnt/project_rlinf/gaofeng/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"
+        ),
+        exp_name="place_goods_sm2sm_h5f3mhs_a30_dm10dh50df50",
+        num_train_steps=30_000,
+    ),
+    TrainConfig(
+        name="pi05_place_goods_sm2sm_seq",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=30),
+        data=LeRobotX2robotDataConfig(
+            repo_id="place_goods_sm2sm",
+            mode="sm2sm",
+            slave_state_dim=8,
+            action_dim=16,
+            state_history_size=5,
+            state_future_size=3,
+            mask_history_slave_states=True,
+            random_drop_master=0.10,
+            random_drop_history=0.50,
+            random_drop_future=0.50,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "/mnt/project_rlinf/gaofeng/.cache/openpi/openpi-assets/checkpoints/pi05_base/params"
+        ),
+        exp_name="place_goods_sm2sm_h5f3mhs_a30_dm10dh50df50",
+        num_train_steps=30_000,
+        batch_size=256,
+    ),
+    TrainConfig(
+        name="pi05_handover_chips_sm2sm",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=30, max_token_len=1000),
+        data=LeRobotX2robotDataConfig(
+            repo_id="handover_chips_sm2sm",
+            mode="sm2sm",
+            slave_state_dim=8,
+            action_dim=16,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "/mnt/project_rlinf/gaofeng/.cache/openpi/openpi-assets/checkpoints/pi05_base/params"
+        ),
+        exp_name="pi05_handover_chips_sm2sm_a30",
+        num_train_steps=30_000,
+        batch_size=128,
+    ),
+    TrainConfig(
+        name="pi05_handover_chips_sm2sm_seq",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=30, max_token_len=1000),
+        data=LeRobotX2robotDataConfig(
+            repo_id="handover_chips_sm2sm",
+            mode="sm2sm",
+            slave_state_dim=8,
+            action_dim=16,
+            state_history_size=5,
+            state_future_size=3,
+            mask_history_slave_states=True,
+            random_drop_master=0.10,
+            random_drop_history=0.50,
+            random_drop_future=0.50,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "/mnt/project_rlinf/gaofeng/.cache/openpi/openpi-assets/checkpoints/pi05_base/params"
+        ),
+        exp_name="pi05_handover_chips_sm2sm_h5f3mhs_a30_dm10dh50df50",
+        num_train_steps=30_000,
+        batch_size=128,
     ),
     # RoboArena & PolaRiS configs.
     *roboarena_config.get_roboarena_configs(),

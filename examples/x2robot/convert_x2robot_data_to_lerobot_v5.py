@@ -28,22 +28,29 @@ import tqdm
 from pathlib import Path
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset, HF_LEROBOT_HOME
 import tyro
+import dataclasses
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 
-    
+
 # Suppress ffmpeg output
 os.environ['SVT_LOG'] = '0'
 
 
-# Configuration
-REPO_NAME = "plugusb_0119+0120+0121_sm2sm_jr"
-RAW_DATASET_PATHS = [
-    './datasets/x2robot/plugusb_0119/',
-    './datasets/x2robot/plugusb_0120/',
-    './datasets/x2robot/plugusb_0121/',
-]
+@dataclass
+class ConvertArgs:
+    raw_paths: list[str] = dataclasses.field(
+        default_factory=lambda: ['/mnt/project_rlinf/gaofeng/striding/processed_data/handover_chips/'],
+    )
+    repo_name: str = "handover_chips_sm2sm"
+    task: str = "Pick up the goods on your left hand and place them into the bag on your right hand."
+    push_to_hub: bool = False
+    debug: bool = False
+    debug_episodes: int = 3
+    low_resolution: bool = True
+    num_workers: int = 10
+
 
 FILE_CAMERA_MAPPING = {
     "face_view": "faceImg.mp4",
@@ -211,10 +218,10 @@ def transcode_single_video(
         output_path,
         target_size,
         fps,
-        vcodec="libsvtav1",
+        vcodec="libx264",
         pix_fmt="yuv420p",
         g=2,
-        crf=30
+        crf=23
     )
     
     return episode_index, camera_name, num_frames
@@ -367,31 +374,25 @@ class NoVideoIOLeRobotDataset(LeRobotDataset):
         return obj
 
 
-def main(
-    push_to_hub: bool = False,
-    debug: bool = False,
-    debug_episodes: int = 3,
-    low_resolution: bool = True,
-    num_workers: int = 10,
-):
+def main(args: ConvertArgs):
     """
     V5: Direct ffmpeg transcoding optimization.
     """
     print(f"HF_LEROBOT_HOME: {HF_LEROBOT_HOME}")
-    print(f"V5: Direct ffmpeg transcoding (num_workers={num_workers})")
+    print(f"V5: Direct ffmpeg transcoding (num_workers={args.num_workers})")
     
-    output_path = HF_LEROBOT_HOME / REPO_NAME
+    output_path = HF_LEROBOT_HOME / args.repo_name
     if output_path.exists():
         print(f"Removing existing dataset at {output_path}")
         shutil.rmtree(output_path)
     
-    episode_paths = find_episodes(RAW_DATASET_PATHS)
+    episode_paths = find_episodes(args.raw_paths)
     print(f"Found {len(episode_paths)} episodes")
-    if debug:
-        episode_paths = episode_paths[:debug_episodes]
-        print(f"Debug mode: only processing first {debug_episodes} episodes")
+    if args.debug:
+        episode_paths = episode_paths[:args.debug_episodes]
+        print(f"Debug mode: only processing first {args.debug_episodes} episodes")
     
-    target_size = (320, 240) if low_resolution else (640, 480)
+    target_size = (320, 240) if args.low_resolution else (640, 480)
     shape = (target_size[1], target_size[0], 3)  # (H, W, C)
     
     total_start = time.time()
@@ -401,7 +402,7 @@ def main(
     # ========================================
     print("\nCreating LeRobotDataset...")
     dataset = NoVideoIOLeRobotDataset.create(
-        repo_id=REPO_NAME,
+        repo_id=args.repo_name,
         robot_type="ARX",
         fps=20,
         features={
@@ -453,7 +454,7 @@ def main(
     
     episode_frame_counts = {}
     
-    with ThreadPoolExecutor(max_workers=num_workers) as executor:
+    with ThreadPoolExecutor(max_workers=args.num_workers) as executor:
         futures = {
             executor.submit(transcode_single_video, *task): task[:3]
             for task in transcode_tasks
@@ -493,7 +494,6 @@ def main(
         state_array, action_array = load_json_data(ep_path)
         num_frames = len(state_array)
         
-        # 设置视频帧数（用于伪统计）
         dataset._video_frame_count = num_frames - 1
         
         for i in range(num_frames - 1):
@@ -503,7 +503,7 @@ def main(
                 "right_wrist_view": dummy_image,
                 "state": state_array[i],
                 "actions": action_array[i + 1],
-                "task": '',
+                "task": args.task,
             }
             dataset.add_frame(frame_data)
         
@@ -539,7 +539,7 @@ def main(
     print(f"{'='*60}")
     print(f"Dataset saved at {output_path}")
     
-    if push_to_hub:
+    if args.push_to_hub:
         print("Pushing to Hugging Face Hub...")
         dataset.push_to_hub()
 
