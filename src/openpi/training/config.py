@@ -1585,6 +1585,7 @@ _CONFIGS = [
         num_train_steps=30_000,
         batch_size=256,
     ),
+
     TrainConfig(
         name="pi05_handover_chips_sm2sm",
         model=pi0_config.Pi0Config(pi05=True, action_horizon=30, max_token_len=1000),
@@ -1601,6 +1602,7 @@ _CONFIGS = [
         num_train_steps=30_000,
         batch_size=128,
     ),
+
     TrainConfig(
         name="pi05_handover_chips_sm2sm_seq",
         model=pi0_config.Pi0Config(pi05=True, action_horizon=30, max_token_len=1000),
@@ -1623,6 +1625,92 @@ _CONFIGS = [
         num_train_steps=30_000,
         batch_size=128,
     ),
+
+    TrainConfig(
+        name="fold_towel_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0329",
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=28,
+            random_drop_master=0.10,
+            random_drop_history=0.50,
+            random_drop_future=0.50,
+            random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=128,
+        # exp_name="checkout_chips_gqy_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="checkout_chips_cyn_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        exp_name="fold_towel_gqy_031703180329_sm2sm_h3f2_a20_dm10dh50df50po20",
+    ),
+
+    TrainConfig(
+        name="checkout_chips_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            # repo_id="checkout_chips_gqy_0312", # Multiple datasets separated by comma
+            repo_id="checkout_chips_gqy_0312,checkout_chips_gqy_0313",
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=28,
+            random_drop_master=0.10,
+            random_drop_history=0.50,
+            random_drop_future=0.50,
+            random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=128,
+        # exp_name="checkout_chips_gqy_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="checkout_chips_cyn_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        exp_name="checkout_chips_gqy_03120313_sm2sm_h3f2_a20_dm10dh50df50po20",
+    ),
+
+    TrainConfig(
+        name="checkout_cookie_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            repo_id="checkout_cookie_gf_0314",
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=28,
+            # random_drop_master=0.10,
+            # random_drop_history=0.10,
+            # random_drop_future=0.10,
+            # random_pos_offset=0.10,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=128,
+        exp_name="checkout_cookie_gf_0314_sm2sm_h3f2_a20_dm10dh10df10po10",
+    ),
+
+    TrainConfig(
+        name="restock_cola_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            repo_id="restock_cola_cyn_0313", 
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=28,
+            random_drop_master=0.10,
+            random_drop_history=0.50,
+            random_drop_future=0.50,
+            random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=128,
+        exp_name="restock_cola_cyn_0313_sm2sm_h3f2_a20_dm10dh50df50po20",
+    ),
+
     # RoboArena & PolaRiS configs.
     *roboarena_config.get_roboarena_configs(),
     *polaris_config.get_polaris_configs(),
