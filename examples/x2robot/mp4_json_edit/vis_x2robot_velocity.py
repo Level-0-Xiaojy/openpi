@@ -64,9 +64,23 @@ def compute_velocity(signals: dict, hz: int):
             vel[key] = np.gradient(data, dt, axis=0)
     return vel
 
+def find_auto_highlight(vel_signals: dict, hz: int, window: float = 2.0) -> tuple[float, float]:
+    """
+    在 left/right position z 的速度中找出正向最大的时刻 t，
+    返回 (t - window, t + window)（单位：秒）。
+    """
+    left_vz = vel_signals["master_left_position"][:, 2]
+    right_vz = vel_signals["master_right_position"][:, 2]
+    combined = np.concatenate([left_vz, right_vz])
+    idx = int(np.argmax(combined))
+    # argmax 超过 len(left_vz) 表示是 right 的
+    frame_idx = idx if idx < len(left_vz) else idx - len(left_vz)
+    t = frame_idx / hz
+    return max(0.0, t - window), t + window
 
 def plot_velocity(vel_signals, total_frames, episode_name, hz=20,
-                  highlight_start=None, highlight_end=None, output_path=None):
+                  highlight_start=None, highlight_end=None, output_path=None,
+                  action_frequency=None):
     time = np.arange(total_frames) / hz
 
     subplot_plan = [
@@ -135,6 +149,28 @@ def plot_velocity(vel_signals, total_frames, episode_name, hz=20,
             if row_idx == 0 and col_idx == 0:
                 ax.legend(fontsize=8, loc="upper right")
 
+    if action_frequency is not None:
+        ax = fig.add_subplot(gs[3, 3])
+
+        if highlight_start is not None and highlight_end is not None:
+            ax.axvspan(highlight_start, highlight_end, color="red", alpha=0.15, zorder=0)
+
+        ax.step(time, action_frequency, where="post",
+                color="#2ca02c", linewidth=1.2, label="action_freq")
+        ax.fill_between(time, action_frequency, step="post",
+                        color="#2ca02c", alpha=0.15)
+
+        ax.set_title("Action Frequency (Hz)", fontsize=10, fontweight="bold")
+        ax.set_xlabel("Time (s)", fontsize=8)
+        ax.set_ylabel("Hz", fontsize=8)
+        ax.tick_params(labelsize=7)
+        ax.grid(True, alpha=0.3)
+
+        y_min = float(action_frequency.min())
+        y_max = float(action_frequency.max())
+        pad = max(2.0, (y_max - y_min) * 0.2)
+        ax.set_ylim(y_min - pad, y_max + pad)
+
     if output_path is None:
         output_path = f"vel_{episode_name}.png"
 
@@ -154,6 +190,10 @@ def main():
     parser.add_argument("--highlight_end", type=float, default=None,
                         help="End time (seconds) to highlight in red")
     parser.add_argument("--output", type=str, default=None, help="Output PNG path")
+    parser.add_argument("--auto_highlight", action="store_true",
+                        help="自动根据 left/right position z 最大速度时刻设置 highlight")
+    parser.add_argument("--auto_highlight_window", type=float, default=2.0,
+                        help="auto_highlight 前后窗口（秒，默认 2.0）")
     args = parser.parse_args()
 
     raw = load_episode(args.data_dir, args.episode)
@@ -163,10 +203,23 @@ def main():
 
     signals = extract_signals(raw["data"])
     vel_signals = compute_velocity(signals, args.hz)
+    action_frequency = np.array(
+        [d.get("action_frequency", args.hz) for d in raw["data"]],
+        dtype=np.float32,
+    )
+    highlight_start = args.highlight_start
+    highlight_end = args.highlight_end
+    if args.auto_highlight:
+        highlight_start, highlight_end = find_auto_highlight(
+            vel_signals, args.hz, window=args.auto_highlight_window
+        )
+        print(f"Auto highlight: [{highlight_start:.2f}s, {highlight_end:.2f}s]")
+
     plot_velocity(vel_signals, total_frames, args.episode, hz=args.hz,
-                  highlight_start=args.highlight_start,
-                  highlight_end=args.highlight_end,
-                  output_path=args.output)
+              highlight_start=highlight_start,
+              highlight_end=highlight_end,
+              output_path=args.output,
+              action_frequency=action_frequency)
 
 
 if __name__ == "__main__":
