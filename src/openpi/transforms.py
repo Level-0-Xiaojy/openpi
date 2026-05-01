@@ -325,6 +325,74 @@ class PromptFromLeRobotTask(DataTransformFn):
 
 
 @dataclasses.dataclass(frozen=True)
+class AppendMetaToPrompt(DataTransformFn):
+    """Append a metadata string (e.g. '[operator]:pys') to the end of the prompt, with optional dropout.
+
+    This is designed to work with LeRobot datasets where:
+    - `task_index` -> `prompt` is produced via `PromptFromLeRobotTask`
+    - metadata is stored as a separate string feature in parquet (e.g. key='meta')
+    """
+
+    meta_key: str = "meta"
+    dropout_p: float = 0.0
+    seed: int = 0
+    # If true, we will only apply dropout (not the append) when split is train; handled by caller.
+
+    def _deterministic_uniform01(self, *, episode_index: int, frame_index: int) -> float:
+        # 32-bit mix/hash into [0,1). Deterministic across workers/machines.
+        x = (self.seed & 0xFFFFFFFF) ^ ((episode_index * 0x9E3779B1) & 0xFFFFFFFF) ^ ((frame_index * 0x85EBCA77) & 0xFFFFFFFF)
+        x ^= (x >> 16) & 0xFFFFFFFF
+        x = (x * 0x7FEB352D) & 0xFFFFFFFF
+        x ^= (x >> 15) & 0xFFFFFFFF
+        x = (x * 0x846CA68B) & 0xFFFFFFFF
+        x ^= (x >> 16) & 0xFFFFFFFF
+        return float(x) / 2**32
+
+    def __call__(self, data: DataDict) -> DataDict:
+        prompt = data.get("prompt", None)
+        if prompt is None:
+            return data
+        if not isinstance(prompt, str):
+            prompt = prompt.item()
+
+        meta_val = data.get(self.meta_key, None)
+        if meta_val is None:
+            return data
+        if not isinstance(meta_val, str):
+            meta_val = meta_val.item()
+        meta_val = str(meta_val)
+        if meta_val == "":
+            return {**data, "prompt": prompt}
+
+        # Decide dropout (if enabled).
+        if self.dropout_p > 0.0:
+            # Prefer explicit indices for stable per-sample randomness.
+            ep = data.get("episode_index", None)
+            fr = data.get("frame_index", None)
+            if ep is None or fr is None:
+                # Fall back to global index if frame_index missing.
+                idx = data.get("index", 0)
+                if not isinstance(idx, (int, np.integer)):
+                    idx = int(np.asarray(idx).item())
+                ep = 0
+                fr = idx
+            else:
+                if not isinstance(ep, (int, np.integer)):
+                    ep = int(np.asarray(ep).item())
+                if not isinstance(fr, (int, np.integer)):
+                    fr = int(np.asarray(fr).item())
+            u = self._deterministic_uniform01(episode_index=int(ep), frame_index=int(fr))
+            if u < float(self.dropout_p):
+                return {**data, "prompt": prompt}
+
+        # Append meta to the end of prompt.
+        suffix = meta_val
+        if not suffix.startswith(" "):
+            suffix = " " + suffix
+        return {**data, "prompt": prompt + suffix}
+
+
+@dataclasses.dataclass(frozen=True)
 class PadStatesAndActions(DataTransformFn):
     """Zero-pads states and actions to the model action dimension."""
 

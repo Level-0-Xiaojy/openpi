@@ -108,9 +108,12 @@ def main(config_name: str, max_frames: int | None = None):
 
     norm_stats = {key: stats.get_statistics() for key, stats in stats.items()}
 
-    # For multi-dataset, concatenate dataset names with underscores
+    # Prefer the configured asset_id (e.g., to avoid overly long names for multi-dataset runs).
+    # Fall back to repo_id-derived name for backwards compatibility.
     repo_ids = [repo_id.strip() for repo_id in data_config.repo_id.split(",") if repo_id.strip()]
-    if len(repo_ids) > 1:
+    if data_config.asset_id:
+        asset_name = data_config.asset_id
+    elif len(repo_ids) > 1:
         asset_name = "_".join(repo_ids)
     else:
         asset_name = data_config.repo_id

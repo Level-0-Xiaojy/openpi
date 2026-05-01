@@ -319,7 +319,24 @@ def create_torch_dataset(
             )
 
         if data_config.prompt_from_task:
-            dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset_meta.tasks)])
+            prompt_transforms: list[_transforms.DataTransformFn] = [
+                _transforms.PromptFromLeRobotTask(dataset_meta.tasks)
+            ]
+            # Optionally append a metadata string (e.g. "[operator]:pys") to the prompt.
+            # Dropout is applied only for the training split.
+            if getattr(data_config, "prompt_meta_key", None):
+                dropout_p = float(getattr(data_config, "prompt_meta_dropout_p", 0.0) or 0.0)
+                seed = int(getattr(data_config, "prompt_meta_dropout_seed", 0) or 0)
+                if split != "train":
+                    dropout_p = 0.0
+                prompt_transforms.append(
+                    _transforms.AppendMetaToPrompt(
+                        meta_key=str(getattr(data_config, "prompt_meta_key")),
+                        dropout_p=dropout_p,
+                        seed=seed,
+                    )
+                )
+            dataset = TransformedDataset(dataset, prompt_transforms)
 
         return dataset
     
@@ -371,7 +388,22 @@ def create_torch_dataset(
             )
         
         if data_config.prompt_from_task:
-            dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset_meta.tasks)])
+            prompt_transforms: list[_transforms.DataTransformFn] = [
+                _transforms.PromptFromLeRobotTask(dataset_meta.tasks)
+            ]
+            if getattr(data_config, "prompt_meta_key", None):
+                dropout_p = float(getattr(data_config, "prompt_meta_dropout_p", 0.0) or 0.0)
+                seed = int(getattr(data_config, "prompt_meta_dropout_seed", 0) or 0)
+                if split != "train":
+                    dropout_p = 0.0
+                prompt_transforms.append(
+                    _transforms.AppendMetaToPrompt(
+                        meta_key=str(getattr(data_config, "prompt_meta_key")),
+                        dropout_p=dropout_p,
+                        seed=seed,
+                    )
+                )
+            dataset = TransformedDataset(dataset, prompt_transforms)
             
         datasets.append(dataset)
     

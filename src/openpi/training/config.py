@@ -89,6 +89,12 @@ class DataConfig:
     action_sequence_keys: Sequence[str] = ("actions",)
     # If true, will use the LeRobot dataset task to define the prompt.
     prompt_from_task: bool = False
+    # If set, append this string feature (e.g. "meta") to the end of the prompt.
+    prompt_meta_key: str | None = "meta"
+    # Probability of dropping the meta string when forming the prompt during *training* (split="train").
+    prompt_meta_dropout_p: float = 0.0
+    # Seed used for deterministic per-sample meta dropout.
+    prompt_meta_dropout_seed: int = 0
     state_history_size: int = 0
     state_future_size: int = 0
 
@@ -163,6 +169,15 @@ class DataConfigFactory(abc.ABC):
     repo_id: str = tyro.MISSING
     # Determines how the assets will be loaded.
     assets: AssetsConfig = dataclasses.field(default_factory=AssetsConfig)
+    # If true, will use the LeRobot dataset task to define the prompt.
+    # This is configured here (factory-level) so it can be overridden via CLI: `--data.prompt-from-task`.
+    prompt_from_task: bool = False
+    # If set, append this string feature (e.g. "meta") to the end of the prompt.
+    prompt_meta_key: str | None = "meta"
+    # Probability of dropping the meta string when forming the prompt during *training* (split="train").
+    prompt_meta_dropout_p: float = 0.0
+    # Seed used for deterministic per-sample meta dropout.
+    prompt_meta_dropout_seed: int = 0
     # Base config that will be updated by the factory.
     base_config: tyro.conf.Suppress[DataConfig | None] = None
 
@@ -179,6 +194,10 @@ class DataConfigFactory(abc.ABC):
             asset_id=asset_id,
             norm_stats=self._load_norm_stats(epath.Path(self.assets.assets_dir or assets_dirs), asset_id),
             use_quantile_norm=model_config.model_type != ModelType.PI0,
+            prompt_from_task=self.prompt_from_task,
+            prompt_meta_key=self.prompt_meta_key,
+            prompt_meta_dropout_p=self.prompt_meta_dropout_p,
+            prompt_meta_dropout_seed=self.prompt_meta_dropout_seed,
         )
 
     def _load_norm_stats(self, assets_dir: epath.Path, asset_id: str | None) -> dict[str, _transforms.NormStats] | None:
@@ -1623,6 +1642,208 @@ _CONFIGS = [
         num_train_steps=30_000,
         batch_size=128,
     ),
+    
+    TrainConfig(
+        name="restock_goods_chengdu_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            repo_id="handover_water_chengdu_cjx_0424,handover_water_chengdu_pys_0423,handover_water_chips_chengdu_pys_0423,handover_viee_water_chengdu_pys_0423",
+            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318",
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=28,
+            # random_drop_master=0.10,
+            # random_drop_history=0.50,
+            # random_drop_future=0.50,
+            # random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=128,
+        # exp_name="checkout_chips_gqy_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="checkout_chips_cyn_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        exp_name="restock_goods_chengdu_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="fold_towel_gqy_03170318_sm2sm_h3f2_a20_dm10dh50df50po20",
+    ),
+        TrainConfig(
+        name="restock_goods_beijing_chengdu_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            # All local LeRobot datasets under /mnt/public/huzhipeng/huggingface/lerobot (with meta/info.json).
+            repo_id="restock_chips_xpc_0428,restock_cola_viee_hzp_0422,restock_cola_water_hzp_0422,restock_cola_xpc_0428,restock_viee_chips_cjx_0427,restock_viee_chips_hzp_0422,restock_viee_hzp_0420,restock_viee_hzp_0425,restock_viee_hzp_0428,restock_viee_water_cjx_0427,restock_viee_water_hzp_0422,restock_water_chips_cjx_0427,restock_water_chips_cjx_0428,restock_water_cjx_0428,restock_water_hzp_0421,restock_water_pys_0423,restore_viee_chips_pys_0423,restore_water_chips_pys_0423,retock_cola_viee_water_chips_cjx_0428,retock_cola_water_cjx_0427",
+            assets=AssetsConfig(asset_id="restock_goods_beijing_chengdu_sm2sm"),
+            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318",
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=28,
+            # Prompt/metadata support:
+            # - When enabled, prompt is derived from task_index -> meta/tasks.jsonl.
+            # - If the dataset has a string feature named "meta" (e.g. "[operator]:pys"), it can be appended
+            #   and dropped with probability p via CLI: --data.prompt-meta-dropout-p 0.5
+            prompt_from_task=True,
+            prompt_meta_key="meta",
+            prompt_meta_dropout_p=0.5,
+            prompt_meta_dropout_seed=42,
+            # random_drop_master=0.10,
+            # random_drop_history=0.50,
+            # random_drop_future=0.50,
+            # random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=128,
+        # exp_name="checkout_chips_gqy_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="checkout_chips_cyn_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        exp_name="restock_goods_beijing_chengdu_0428_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="fold_towel_gqy_03170318_sm2sm_h3f2_a20_dm10dh50df50po20",
+    ),
+    TrainConfig(
+        name="restock_viee_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            repo_id="restock_viee_hzp_0420,restock_viee_hzp_0425,restock_viee_hzp_0428",
+            # assets=AssetsConfig(asset_id="restock_goods_0422_sm2sm"),
+            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318",
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=28,
+            # random_drop_master=0.10,
+            # random_drop_history=0.50,
+            # random_drop_future=0.50,
+            # random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=128,
+        # exp_name="checkout_chips_gqy_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="checkout_chips_cyn_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        exp_name="restock_viee_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="fold_towel_gqy_03170318_sm2sm_h3f2_a20_dm10dh50df50po20",
+    ),
+    TrainConfig(
+        name="restock_water_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            repo_id="restock_water_hzp_0421,restock_water_pys_0423,restock_water_cjx_0428",
+            # assets=AssetsConfig(asset_id="restock_goods_0422_sm2sm"),
+            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318",
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=28,
+            # random_drop_master=0.10,
+            # random_drop_history=0.50,
+            # random_drop_future=0.50,
+            # random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=128,
+        # exp_name="checkout_chips_gqy_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="checkout_chips_cyn_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        exp_name="restock_water_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="fold_towel_gqy_03170318_sm2sm_h3f2_a20_dm10dh50df50po20",
+    ),
+    TrainConfig(
+        name="restock_cola_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            repo_id="restock_cola_xpc_0428,restock_cola_xpc_0429",
+            # assets=AssetsConfig(asset_id="restock_goods_0422_sm2sm"),
+            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318",
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=28,
+            # random_drop_master=0.10,
+            # random_drop_history=0.50,
+            # random_drop_future=0.50,
+            # random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=128,
+        # exp_name="checkout_chips_gqy_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="checkout_chips_cyn_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        exp_name="restock_cola_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="fold_towel_gqy_03170318_sm2sm_h3f2_a20_dm10dh50df50po20",
+    ),
+    TrainConfig(
+        name="restock_chips_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            repo_id="restock_chips_xpc_0428,restock_chips_xpc_0429",
+            # assets=AssetsConfig(asset_id="restock_goods_0422_sm2sm"),
+            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318",
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=28,
+            # random_drop_master=0.10,
+            # random_drop_history=0.50,
+            # random_drop_future=0.50,
+            # random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=128,
+        # exp_name="checkout_chips_gqy_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="checkout_chips_cyn_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        exp_name="restock_chips_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="fold_towel_gqy_03170318_sm2sm_h3f2_a20_dm10dh50df50po20",
+    ),
+    TrainConfig(
+        name="restock_cola_viee_water_chips_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            repo_id="restock_viee_hzp_0420,restock_viee_hzp_0425,restock_viee_hzp_0428,restock_water_hzp_0421,restock_water_pys_0423,restock_water_cjx_0428,restock_chips_xpc_0428,restock_chips_xpc_0429,restock_cola_xpc_0428,restock_cola_xpc_0429",
+            assets=AssetsConfig(asset_id="restock_cola_viee_water_chips_sm2sm"),
+            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318",
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=28,
+            # random_drop_master=0.10,
+            # random_drop_history=0.50,
+            # random_drop_future=0.50,
+            # random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=128,
+        # exp_name="checkout_chips_gqy_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="checkout_chips_cyn_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        exp_name="restock_cola_viee_water_chips_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="fold_towel_gqy_03170318_sm2sm_h3f2_a20_dm10dh50df50po20",
+    ),
+    TrainConfig(
+        name="restock_beijing_0429_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            repo_id="restock_viee_water_hzp_0422,restock_cola_viee_hzp_0422,restock_cola_water_hzp_0422,restock_viee_chips_hzp_0422,restock_viee_hzp_0420,restock_viee_hzp_0425,restock_viee_hzp_0428,restock_water_hzp_0421,restock_chips_xpc_0428,restock_chips_xpc_0429,restock_cola_xpc_0428,restock_cola_xpc_0429",
+            assets=AssetsConfig(asset_id="restock_beijing_0429_sm2sm"),
+            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318",
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=28,
+            # random_drop_master=0.10,
+            # random_drop_history=0.50,
+            # random_drop_future=0.50,
+            # random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=128,
+        # exp_name="checkout_chips_gqy_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="checkout_chips_cyn_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
+        exp_name="restock_beijing_0429_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="fold_towel_gqy_03170318_sm2sm_h3f2_a20_dm10dh50df50po20",
+    ),
+    #
     # RoboArena & PolaRiS configs.
     *roboarena_config.get_roboarena_configs(),
     *polaris_config.get_polaris_configs(),

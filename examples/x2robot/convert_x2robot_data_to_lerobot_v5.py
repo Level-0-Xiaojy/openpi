@@ -41,10 +41,17 @@ os.environ['SVT_LOG'] = '0'
 @dataclass
 class ConvertArgs:
     raw_paths: list[str] = dataclasses.field(
-        default_factory=lambda: ['/mnt/project_rlinf/gaofeng/striding/processed_data/handover_chips/'],
+        default_factory=lambda: ['/mnt/resource/restock_chips/beijing_xiapengcheng_20260429_am'],
     )
-    repo_name: str = "handover_chips_sm2sm"
-    task: str = "Pick up the goods on your left hand and place them into the bag on your right hand."
+    repo_name: str = "restock_chips_xpc_0429"   
+    # Task text only. This is what will be stored in `meta/tasks.jsonl` and used for `task_index -> prompt`.
+    task_text: str = "[task]:Restock snacks of the same specification from the replenishment bin to the front of out-of-stock slots."
+    # Optional metadata string that can be appended to the prompt during training, e.g. "[operator]:pys".
+    # This will be stored as a separate string feature in parquet (key: "meta").
+    meta: str = " [objects]:chips. [operator]:xpc"
+    # Backward-compatible field (deprecated). If provided (non-empty), we will treat it as `task_text`
+    # and set `meta=""` unless `--meta` is explicitly set.
+    task: str = ""
     push_to_hub: bool = False
     debug: bool = False
     debug_episodes: int = 3
@@ -59,37 +66,37 @@ FILE_CAMERA_MAPPING = {
 }
 
 STATE_KEYS = [
-    # 'follow_left_position',
-    # 'follow_left_rotation', 
-    # 'follow_left_gripper',
-    # 'follow_right_position',
-    # 'follow_right_rotation',
-    'follow_right_joint_pos',
+    'follow_left_position',
+    'follow_left_rotation', 
+    'follow_left_gripper',
+    'follow_right_position',
+    'follow_right_rotation',
+    # 'follow_right_joint_pos',
     'follow_right_gripper',   
-    # 'master_left_position',
-    # 'master_left_rotation',
-    # 'master_left_gripper', 
-    # 'master_right_position',
-    # 'master_right_rotation',
-    'master_right_joint_pos',
+    'master_left_position',
+    'master_left_rotation',
+    'master_left_gripper', 
+    'master_right_position',
+    'master_right_rotation',
+    # 'master_right_joint_pos',
     'master_right_gripper',
 ]
 
 ACTION_KEYS = [
-    # 'follow_left_position',
-    # 'follow_left_rotation', 
-    # 'follow_left_gripper',
-    # 'follow_right_position',
-    # 'follow_right_rotation',
-    'follow_right_joint_pos',
+    'follow_left_position',
+    'follow_left_rotation', 
+    'follow_left_gripper',
+    'follow_right_position',
+    'follow_right_rotation',
+    # 'follow_right_joint_pos',
     'follow_right_gripper',
     
-    # 'master_left_position',
-    # 'master_left_rotation',
-    # 'master_left_gripper', 
-    # 'master_right_position',
-    # 'master_right_rotation',
-    'master_right_joint_pos',
+    'master_left_position',
+    'master_left_rotation',
+    'master_left_gripper', 
+    'master_right_position',
+    'master_right_rotation',
+    # 'master_right_joint_pos',
     'master_right_gripper',
 ]
 
@@ -431,6 +438,12 @@ def main(args: ConvertArgs):
                 "shape": (get_dim_from_keys(ACTION_KEYS),),
                 "names": ["actions"],
             },
+            # Extra string metadata that can be used to condition the prompt during training.
+            "meta": {
+                "dtype": "string",
+                "shape": (1,),
+                "names": None,
+            },
         },
         image_writer_threads=0,
         image_writer_processes=0,
@@ -497,13 +510,27 @@ def main(args: ConvertArgs):
         dataset._video_frame_count = num_frames - 1
         
         for i in range(num_frames - 1):
+            # Backward-compat: if user still passes `--task "..."`
+            task_text = args.task_text
+            meta_text = args.meta
+            if args.task:
+                task_text = args.task
+                # In backward-compat mode, if user did not pass `--meta`, we default to empty meta.
+                # We detect this by comparing to the dataclass default string.
+                if args.meta == "[operator]:hzp":
+                    meta_text = ""
+
             frame_data = {
                 "face_view": dummy_image,
                 "left_wrist_view": dummy_image,
                 "right_wrist_view": dummy_image,
                 "state": state_array[i],
                 "actions": action_array[i + 1],
-                "task": args.task,
+                # `task` is a special string field in LeRobot; it will be mapped to `task_index` in `save_episode`.
+                # We intentionally keep task_text free of meta so the same task maps to a single task_index.
+                "task": task_text,
+                # Store meta separately so training can append/drop it without affecting `task_index`.
+                "meta": meta_text,
             }
             dataset.add_frame(frame_data)
         
