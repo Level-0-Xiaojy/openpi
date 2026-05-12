@@ -1772,7 +1772,7 @@ _CONFIGS = [
         name="throw_sandbox_sm2sm",
         model=pi0_config.Pi0Config(action_horizon=20),
         data=LeRobotX2robotDataConfig(
-            repo_id="throw_sandbox_hy_0427",
+            repo_id="throw_sandbox_hy_0510",
             mode="sm2sm",
             state_history_size=3,
             state_future_size=2,
@@ -1785,7 +1785,27 @@ _CONFIGS = [
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
         batch_size=128,
-        exp_name="throw_sandbox_hy_0427_sm2sm_h3f2_a20_dm10dh10df10po10",
+        exp_name="throw_sandbox_hy_0510_sm2sm_h3f2_a20_dm10dh10df10po10",
+    ),
+
+    TrainConfig(
+        name="throw_sandbox_sm2sm_freq",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            repo_id="throw_sandbox_hy_0510_freq",
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=29,
+            random_drop_master=0.10,
+            random_drop_history=0.50,
+            random_drop_future=0.50,
+            random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=128,
+        exp_name="throw_sandbox_hy_0510_sm2sm_freq_h3f2_a20_dm10dh10df10po10",
     ),
 
     TrainConfig(
@@ -1806,26 +1826,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
         batch_size=128,
         exp_name="clean_table_gqy_0425_sm2sm_h3f2_a20_dm10dh10df10po10",
-    ),
-
-    TrainConfig(
-        name="throw_sandbox_sm2sm_freq",
-        model=pi0_config.Pi0Config(action_horizon=20),
-        data=LeRobotX2robotDataConfig(
-            repo_id="throw_sandbox_hy_0427_freq",
-            mode="sm2sm",
-            state_history_size=3,
-            state_future_size=2,
-            # only_right_obs=True,
-            action_dim=29,
-            random_drop_master=0.10,
-            random_drop_history=0.50,
-            random_drop_future=0.50,
-            random_pos_offset=0.020,
-        ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
-        batch_size=128,
-        exp_name="throw_sandbox_hy_0427_sm2sm_freq_h3f2_a20_dm10dh10df10po10",
     ),
 
     # RoboArena & PolaRiS configs.
