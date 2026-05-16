@@ -39,15 +39,23 @@ def create_trained_policy(
                       If None and is_pytorch=True, will use "cuda" if available, otherwise "cpu".
 
     Note:
-        The function automatically detects whether the model is PyTorch-based by checking for the
-        presence of "model.safensors" in the checkpoint directory.
+        The function automatically detects whether the model is PyTorch-based by checking for
+        any ".safetensors" files under the checkpoint directory.
     """
     repack_transforms = repack_transforms or transforms.Group()
     checkpoint_dir = download.maybe_download(str(checkpoint_dir))
+    checkpoint_path = pathlib.Path(checkpoint_dir)
 
-    # Check if this is a PyTorch model by looking for model.safetensors
-    weight_path = os.path.join(checkpoint_dir, "model.safetensors")
-    is_pytorch = os.path.exists(weight_path)
+    # Check if this is a PyTorch model by looking for any .safetensors weights.
+    safetensors_files = sorted(checkpoint_path.rglob("*.safetensors"))
+    is_pytorch = len(safetensors_files) > 0
+    if is_pytorch:
+        preferred = checkpoint_path / "model.safetensors"
+        if preferred.exists():
+            weight_path = str(preferred)
+        else:
+            model_named = [f for f in safetensors_files if f.name == "model.safetensors"]
+            weight_path = str(model_named[0] if model_named else safetensors_files[0])
 
     logging.info("Loading model...")
     if is_pytorch:

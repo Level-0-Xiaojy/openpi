@@ -129,7 +129,7 @@ def main(args: Args) -> None:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setblocking(True)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    ip = '192.168.77.58'
+    ip = '192.168.120.73'
     port = 57770
     sock.bind((ip, port))
     sock.listen(1)
