@@ -1827,6 +1827,37 @@ _CONFIGS = [
         batch_size=128,
         exp_name="clean_table_gqy_0425_sm2sm_h3f2_a20_dm10dh10df10po10",
     ),
+        # Fold towel tele + CFG-SFT (RLInf): matches checkpoints/.../00_cfg_towel_2node_...yaml
+    # - actor.model.num_action_chunks / openpi.action_chunk: 20 (NOT checkpoint dir config.json;
+    #   that file often reflects base π₀ export defaults 50/32 and is misleading.)
+    # - Pi0Config(pi05=True, discrete_state_input=False); LeRobotX2robotDataConfig.action_dim=28.
+    TrainConfig(
+        name="fold_towel_sm2sm_lzh",
+        # model=pi0_config.Pi0Config(
+        #     pi05=True,
+        #     action_horizon=20,
+        #     discrete_state_input=False,
+        # ),
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            repo_id="fold_towel_tele_0317_0318_0420",
+            # repo_id="fold_towel_gqy_0317_fold_towel_gqy_0318_fold_towel_gqy_0410_fold_towel_cjx_0415_ep323_fold_towel_hyj_0415_ep100_fold_towel_pys_0415_ep148",
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            action_dim=28,
+            # random_drop_master=0.10,
+            # random_drop_history=0.50,
+            # random_drop_future=0.50,
+            # random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "checkpoints/jax/pi05_base/params"
+        ),
+        pytorch_weight_path="checkpoints/torch/pi0_base",
+        batch_size=128,
+        exp_name="fold_towel_gqy031703180410_cjx0415_hyj0415_pys0415_pi05_sm2sm_h3f2_a20_dm10dh50df50po20",
+    ),
 
     # RoboArena & PolaRiS configs.
     *roboarena_config.get_roboarena_configs(),
