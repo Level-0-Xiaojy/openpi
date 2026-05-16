@@ -114,6 +114,11 @@ class PI0Pytorch(nn.Module):
         # Initialize gradient checkpointing flag
         self.gradient_checkpointing_enabled = False
 
+        # Cache for per-camera image embeddings (populated during embed_prefix).
+        # After sample_actions returns, external code can read this to get obs_feat
+        # without re-running the vision tower.
+        self._cached_image_embeds: list[torch.Tensor] = []
+
         msg = "transformers_replace is not installed correctly. Please install it with `uv pip install transformers==4.53.2` and `cp -r ./src/openpi/models_pytorch/transformers_replace/* .venv/lib/python3.11/site-packages/transformers/`."
         try:
             from transformers.models.siglip import check
@@ -192,6 +197,7 @@ class PI0Pytorch(nn.Module):
         embs = []
         pad_masks = []
         att_masks = []
+        self._cached_image_embeds = []
 
         # Process images
         for img, img_mask in zip(images, img_masks, strict=True):
@@ -200,6 +206,7 @@ class PI0Pytorch(nn.Module):
                 return self.paligemma_with_expert.embed_image(img)
 
             img_emb = self._apply_checkpoint(image_embed_func, img)
+            self._cached_image_embeds.append(img_emb.detach())
 
             bsize, num_img_embs = img_emb.shape[:2]
 

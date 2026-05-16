@@ -1,0 +1,23 @@
+# Smoke test config: 只跑 1 个 repo 的少量 episode，验证 pipeline 完整跑通
+data:
+  lerobot_root: /mnt/public/guqiuyi/huggingface/lerobot
+  repos:
+    - fold_towel_gqy_0317
+  val_ratio: 0.5     # 1 train + 1 val
+  val_split_seed: 0
+  episode_limit: 2
+
+chunks:
+  size: 20
+  stride: 50         # 大 stride 减少样本数，验证用
+
+vision_encoder:
+  pi0_checkpoint_path: /mnt/public/models/pytorch_models/pi0_base_pytorch
+  pi0_action_horizon: 20
+  device: cuda:0
+  dtype: float32
+  batch_size: 32
+
+output:
+  root: /mnt/public/guqiuyi/dataset/velocity_guider_data/_smoke_test
+  overwrite: true

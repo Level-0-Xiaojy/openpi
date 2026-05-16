@@ -1,5 +1,5 @@
 #!/bin/bash
-DATA_DIR=/mnt/public/guqiuyi/dataset/throw_sandbox/throw_sandbox_hy_0510
+DATA_DIR=/mnt/public/datasets/standardized_v1/x2robot/fold_towel/beijing_guqiuyi_20260412_pm_rollout
 OUT_DIR=$DATA_DIR/vis_velocity
 
 mkdir -p "$OUT_DIR"

@@ -81,7 +81,6 @@ ACTION_KEYS = [
     'follow_left_gripper',
     'follow_right_position',
     'follow_right_rotation',
-    # 'follow_right_joint_pos',
     'follow_right_gripper',
     
     'master_left_position',
@@ -89,7 +88,6 @@ ACTION_KEYS = [
     'master_left_gripper', 
     'master_right_position',
     'master_right_rotation',
-    # 'master_right_joint_pos',
     'master_right_gripper',
 ]
 

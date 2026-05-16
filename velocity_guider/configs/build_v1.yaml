@@ -1,0 +1,41 @@
+# Velocity Guider 数据集构造配置 (v1)
+# 与 build_dataset.py 中的 BuildConfig dataclass 一一对应
+
+data:
+  # lerobot 数据集根目录（不含 repo 名）
+  lerobot_root: /mnt/public/guqiuyi/huggingface/lerobot
+
+  # 4 个 fold_towel 数据集（与之前 jax pi0 训练用的一致）
+  repos:
+    - fold_towel_gqy_0317
+    - fold_towel_gqy_0318
+    - fold_towel_gqy_0410
+    - fold_towel_gqy_0420
+
+  # 每个 repo 内按 episode 独立抽 10% 作 val（固定 seed 保证可复现）
+  val_ratio: 0.1
+  val_split_seed: 0
+
+  # 调试时可设小一点，每个 repo 只跑前 N 个 episode；正式 build 设 null
+  episode_limit: null
+
+chunks:
+  size: 20            # 输出 chunk 长度 K（v_mode=3 也是这个值）
+  stride: 5           # 滑窗步长
+
+vision_encoder:
+  # pi0 base PyTorch ckpt（先跑通，后续可换成 sft 后的 ckpt 路径）
+  pi0_checkpoint_path: /mnt/public/models/pytorch_models/pi0_base_pytorch
+
+  # 与 fold_towel_sm2sm 训练 config 对齐：Pi0Config(action_horizon=20)
+  pi0_action_horizon: 20
+
+  device: cuda:0
+  # float32 更稳：当前环境未安装 openpi 的 transformers_replace patch，
+  # bf16 会在 SigLIP 的 fp32 LayerNorm 处出现 dtype mismatch。
+  dtype: float32
+  batch_size: 32
+
+output:
+  root: /mnt/public/guqiuyi/dataset/velocity_guider_data/v1
+  overwrite: false      # 注意：true 会先清空整个 root 目录

@@ -1,0 +1,44 @@
+# Velocity Guider training config.
+# Run from /home/guqiuyi/workspace/openpi.
+
+seed: 0
+output_dir: /mnt/public/guqiuyi/checkpoints/velocity_guider/v2
+eval_interval: 1
+save_interval: 5
+
+data:
+  dataset_root: /mnt/public/guqiuyi/dataset/velocity_guider_data/v2
+  # Pure z-score normalization by default. Set e.g. 8.0 if outliers dominate.
+  action_clip: null
+  cache_size: 16
+  # Per-GPU batch size. Effective batch = batch_size * nproc_per_node.
+  batch_size: 1024
+  num_workers: 8
+  pin_memory: true
+
+model:
+  obs_dim: 6144
+  chunk_size: 20
+  action_dim: 14
+  obs_embed_dim: 256
+  action_embed_dim: 256
+  motion_embed_dim: 64
+  hidden_dims: [512, 256]
+  dropout: 0.1
+  num_classes: 3
+
+optim:
+  epochs: 50
+  lr: 3.0e-4
+  min_lr: 1.0e-6
+  weight_decay: 1.0e-4
+  grad_clip_norm: 1.0
+  # A100 推荐 bf16；如遇数值问题可改成 float32。
+  amp_dtype: bfloat16
+
+wandb:
+  enabled: true
+  project: velocity-guider
+  entity: null
+  name: fold_towel_vg_v2
+  mode: online

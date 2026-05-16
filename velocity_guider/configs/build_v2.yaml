@@ -1,0 +1,39 @@
+# Velocity Guider 数据集构造配置 (v2)
+# 相比 v1 新增 burst 检测：v_mode=2/1 增广只在爆发阶段生成
+
+data:
+  lerobot_root: /mnt/public/guqiuyi/huggingface/lerobot
+
+  repos:
+    - fold_towel_gqy_0317
+    - fold_towel_gqy_0318
+    - fold_towel_gqy_0410
+    - fold_towel_gqy_0420
+
+  val_ratio: 0.1
+  val_split_seed: 0
+  episode_limit: null
+
+chunks:
+  size: 20
+  stride: 5
+
+burst:
+  # "threshold": 左右臂 position speed max > speed_threshold 的帧标为 burst
+  # "peak_window": position z 正向速度全局最大帧 ± peak_window 秒的窗口标为 burst
+  mode: threshold
+  speed_threshold: 0.6    # m/s，仅 mode=threshold 时生效
+  peak_window: 2.0        # 秒，仅 mode=peak_window 时生效
+  dilate_frames: 5        # burst 边界向外膨胀 ±N 帧
+  hz: 20                  # 速度计算频率（和 lerobot 数据采集频率一致）
+
+vision_encoder:
+  pi0_checkpoint_path: /mnt/public/models/pytorch_models/pi0_base_pytorch
+  pi0_action_horizon: 20
+  device: cuda:0
+  dtype: float32
+  batch_size: 32
+
+output:
+  root: /mnt/public/guqiuyi/dataset/velocity_guider_data/v2
+  overwrite: false

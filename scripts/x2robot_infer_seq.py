@@ -2,6 +2,8 @@ import dataclasses
 import logging
 import struct
 import socket
+import sys
+import time
 from collections import deque
 from pathlib import Path
 from typing import Literal
@@ -10,11 +12,14 @@ import tyro
 import json
 import cv2
 import numpy as np
+import torch
 
 from openpi.policies import policy as _policy
 from openpi.policies import policy_config as _policy_config
 from openpi.training import config as _config
 from openpi.training import checkpoints as _checkpoints
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "velocity_guider"))
 
 @dataclasses.dataclass
 class Args:
@@ -29,6 +34,10 @@ class Args:
     move_steps: int = 15
     only_right_arm: bool = False
     latency_step: int = None
+
+    guider_checkpoint: str | None = None
+    """Path to Velocity Guider best.pt. If None, v_mode prediction is disabled
+    and actions_factor is always 3."""
 
 def _load_norm_stats(policy_config: str, policy_dir: str) -> dict | None:
     train_config = _config.get_config(policy_config)
@@ -51,6 +60,29 @@ def read_img(conn):
     image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     return image
+
+
+def _extract_obs_feat_from_policy(policy: _policy.Policy) -> np.ndarray | None:
+    """Extract obs_feat from pi0's cached image embeddings after policy.infer().
+
+    The PI0Pytorch model caches per-camera image embeddings in
+    ``_cached_image_embeds`` during ``embed_prefix``.  We mean-pool the
+    patch dimension and concatenate across cameras to get ``[1, 3*width]``.
+
+    Returns None if the model is not PyTorch or the cache is empty.
+    """
+    if not policy._is_pytorch_model:
+        return None
+    model = policy._model
+    cache = getattr(model, "_cached_image_embeds", None)
+    if not cache:
+        return None
+    pooled = []
+    for emb in cache:
+        pooled.append(emb.mean(dim=1).to(torch.float32))
+    obs_feat = torch.cat(pooled, dim=-1)
+    return obs_feat.cpu().numpy().astype(np.float32)
+
 
 def main(args: Args) -> None:
     # Auto-detect policy_mode from policy_dir if not specified
@@ -83,14 +115,21 @@ def main(args: Args) -> None:
     policy = _policy_config.create_trained_policy(cfg, args.policy_dir)
     norm_stats = _load_norm_stats(args.policy_config, args.policy_dir)
 
+    # Load Velocity Guider (optional)
+    guider = None
+    if args.guider_checkpoint:
+        from infer import VelocityGuiderInfer
+        guider = VelocityGuiderInfer(args.guider_checkpoint, device="cuda:0")
+        logging.info(f"Loaded Velocity Guider from {args.guider_checkpoint}")
+
     state_seq_len = args.state_history_size + 1 + args.state_future_size
     latency_len = args.state_history_size + 1 + args.latency_step
     master_queue = deque(maxlen=100)  # queue_len * 14
     
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setblocking(True) #设置通信是阻塞式
+    sock.setblocking(True)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    ip = '192.168.77.58' # 192.168.77.58
+    ip = '192.168.77.58'
     port = 57770
     sock.bind((ip, port))
     sock.listen(1)
@@ -151,12 +190,34 @@ def main(args: Args) -> None:
             'prompt': '',
             'state': state,
         }
+        t0 = time.perf_counter()
         action_pred = policy.infer(obs)
         action_pred = action_pred['actions']
         if args.policy_mode == "sm2sm":
             _, master_action = action_pred[:, :14], action_pred[:, 14:28]
             action_pred = master_action
-        
+
+        # --- Velocity Guider: predict v_mode using the full chunk BEFORE latency truncation ---
+        actions_factor = 3
+        if guider is not None:
+            obs_feat = _extract_obs_feat_from_policy(policy)
+            if obs_feat is not None:
+                chunk_len = min(20, action_pred.shape[0])
+                chunk = action_pred[:chunk_len]
+                if chunk.shape[0] < 20:
+                    pad = np.tile(chunk[-1:], (20 - chunk.shape[0], 1))
+                    chunk = np.concatenate([chunk, pad], axis=0)
+                result = guider.predict(obs_feat, chunk[np.newaxis])
+                v_mode = int(result["v_mode"][0])
+                actions_factor = 3 if v_mode == 3 else 2
+                logging.info(
+                    "v_mode=%d  actions_factor=%d  probs=[%.2f, %.2f, %.2f]",
+                    v_mode, actions_factor,
+                    result["prob"][0, 0], result["prob"][0, 1], result["prob"][0, 2],
+                )
+        dt_ms = (time.perf_counter() - t0) * 1000
+        logging.info("infer + guider: %.1f ms", dt_ms)
+
         action_pred = action_pred[args.latency_step:]
         action_pred = action_pred[:args.move_steps, ...]  # (move_steps, 14)
         action_pred = np.concatenate([[master_queue[-1]], action_pred])
@@ -166,9 +227,10 @@ def main(args: Args) -> None:
         follow1_pos = action_pred[:, :7].tolist()
         follow2_pos = action_pred[:, 7:].tolist()
         
-        data_dir ={
-            "follow1_pos":follow1_pos,
-            "follow2_pos":follow2_pos, 
+        data_dir = {
+            "follow1_pos": follow1_pos,
+            "follow2_pos": follow2_pos,
+            "actions_factor": actions_factor,
         }
         data_str = json.dumps(data_dir)
         data_bytes = data_str.encode('utf-8') 

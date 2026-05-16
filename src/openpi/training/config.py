@@ -1658,10 +1658,10 @@ _CONFIGS = [
         name="fold_towel_sm2sm",
         model=pi0_config.Pi0Config(action_horizon=20),
         data=LeRobotX2robotDataConfig(
-            repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0420,fold_towel_wyc_0428,fold_towel_wyc_0429,fold_towel_wyc_0508",
-            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0410,fold_towel_gqy_0420",
+            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0420,fold_towel_wyc_0428,fold_towel_wyc_0429,fold_towel_wyc_0508",
+            repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0410,fold_towel_gqy_0420",
             # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0410,fold_towel_cjx_0415_ep323",
-            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0410,fold_towel_cjx_0415_ep323,fold_towel_hyj_0415_ep100,fold_towel_pys_0415_ep148",
+            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0420,fold_towel_cjx_0511,fold_towel_cjx_0512",
             mode="sm2sm",
             state_history_size=3,
             state_future_size=2,
@@ -1678,10 +1678,10 @@ _CONFIGS = [
         batch_size=128,
         # exp_name="checkout_chips_gqy_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
         # exp_name="fold_towel_gqy_03170318_sm2sm_h3f2_a20_dm10dh50df50po20",
-        # exp_name="fold_towel_gqy_0317031804100420_pi0base_sm2sm_h3f2_a20_dm10dh50df50po20",
+        exp_name="fold_towel_gqy_0317031804100420_pi0base_sm2sm_h3f2_a20_dm10dh50df50po20",
         # exp_name="fold_towel_gqy031703180410_cjx0415_pi0base_sm2sm_h3f2_a20_dm10dh50df50po20",
         # exp_name="fold_towel_gqy031703180410_cjx0415_hyj0415_pys0415_pi0base_sm2sm_h3f2_a20_dm10dh50df50po20",
-        exp_name="fold_towel_gqy031703180420_wyc042804290508_pi0base_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="fold_towel_gqy031703180420_cjx05110512_pi0base_sm2sm_h3f2_a20_dm10dh50df50po20",
     ),
 
     TrainConfig(
