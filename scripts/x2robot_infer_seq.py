@@ -210,6 +210,10 @@ def main(args: Args) -> None:
                 result = guider.predict(obs_feat, chunk[np.newaxis])
                 v_mode = int(result["v_mode"][0])
                 actions_factor = 3 if v_mode == 3 else 2
+                # temp modify
+                if result["prob"][0, 1] > 0.02 or result["prob"][0, 2] > 0.02:
+                    actions_factor = 2
+                    
                 logging.info(
                     "v_mode=%d  actions_factor=%d  probs=[%.2f, %.2f, %.2f]",
                     v_mode, actions_factor,

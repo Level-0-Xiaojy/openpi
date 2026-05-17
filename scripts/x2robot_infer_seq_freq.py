@@ -106,7 +106,7 @@ def main(args: Args) -> None:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setblocking(True)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    ip = '192.168.77.58'
+    ip = '192.168.120.153'
     port = 57770
     sock.bind((ip, port))
     sock.listen(1)
@@ -173,7 +173,8 @@ def main(args: Args) -> None:
             master_action = action_pred_full[:, 14:28]
         else:
             master_action = action_pred_full[:, :14]
-
+        
+        print("======",action_pred_full.shape[-1])
         has_freq = action_pred_full.shape[-1] > FREQ_ACTION_INDEX
         freq_pred = action_pred_full[:, FREQ_ACTION_INDEX] if has_freq else None
 
