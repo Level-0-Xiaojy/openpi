@@ -251,21 +251,28 @@ class PI0Pytorch(nn.Module):
             if self.state_proj.weight.dtype == torch.float32:
                 state = state.to(torch.float32)
 
-            # Embed state
+            # State: (batch, state_dim) [legacy single-frame]
+            #     or (batch, seq_len, state_dim) [history/future window from
+            #     LeRobotX2robotDataConfig.state_history_size/state_future_size].
+            if state.ndim == 2:
+                state = state[:, None, :]
+            num_state_tokens = state.shape[1]
+
             def state_proj_func(state):
                 return self.state_proj(state)
 
             state_emb = self._apply_checkpoint(state_proj_func, state)
 
-            embs.append(state_emb[:, None, :])
+            embs.append(state_emb)
             bsize = state_emb.shape[0]
             device = state_emb.device
 
-            state_mask = torch.ones(bsize, 1, dtype=torch.bool, device=device)
+            state_mask = torch.ones(bsize, num_state_tokens, dtype=torch.bool, device=device)
             pad_masks.append(state_mask)
 
-            # Set attention masks so that image and language inputs do not attend to state or actions
-            att_masks += [1]
+            # Match JAX pi0: one new attention block opens at the first state
+            # token; remaining state tokens attend within that block.
+            att_masks += [1] + ([0] * (num_state_tokens - 1))
 
         # Embed timestep using sine-cosine positional encoding with sensitivity in the range [0, 1]
         time_emb = create_sinusoidal_pos_embedding(

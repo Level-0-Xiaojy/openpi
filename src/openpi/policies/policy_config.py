@@ -46,20 +46,14 @@ def create_trained_policy(
     checkpoint_dir = download.maybe_download(str(checkpoint_dir))
     checkpoint_path = pathlib.Path(checkpoint_dir)
 
-    # Check if this is a PyTorch model by looking for any .safetensors weights.
-    safetensors_files = sorted(checkpoint_path.rglob("*.safetensors"))
-    is_pytorch = len(safetensors_files) > 0
-    if is_pytorch:
-        preferred = checkpoint_path / "model.safetensors"
-        if preferred.exists():
-            weight_path = str(preferred)
-        else:
-            model_named = [f for f in safetensors_files if f.name == "model.safetensors"]
-            weight_path = str(model_named[0] if model_named else safetensors_files[0])
+    # PyTorch: single file or HF-style sharded safetensors (FSDP / accelerate export).
+    is_pytorch = (checkpoint_path / "model.safetensors").is_file() or (
+        checkpoint_path / "model.safetensors.index.json"
+    ).is_file()
 
     logging.info("Loading model...")
     if is_pytorch:
-        model = train_config.model.load_pytorch(train_config, weight_path)
+        model = train_config.model.load_pytorch(train_config, checkpoint_path)
         model.paligemma_with_expert.to_bfloat16_for_selected_params("bfloat16")
     else:
         model = train_config.model.load(_model.restore_params(checkpoint_dir / "params", dtype=jnp.bfloat16))

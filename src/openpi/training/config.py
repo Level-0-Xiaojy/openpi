@@ -1658,8 +1658,13 @@ _CONFIGS = [
         name="fold_towel_sm2sm",
         model=pi0_config.Pi0Config(action_horizon=20),
         data=LeRobotX2robotDataConfig(
+            # pytorch 版本
+            # repo_id="fold_towel_tele_0317_0318_0420",
+            repo_id="fold_towel_gqy_0317_fold_towel_gqy_0318_fold_towel_gqy_0420",
+
+            # jax 版本
             # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0420,fold_towel_wyc_0428,fold_towel_wyc_0429,fold_towel_wyc_0508",
-            repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0410,fold_towel_gqy_0420",
+            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0410,fold_towel_gqy_0420",
             # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0410,fold_towel_cjx_0415_ep323",
             # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0420,fold_towel_cjx_0511,fold_towel_cjx_0512",
             mode="sm2sm",

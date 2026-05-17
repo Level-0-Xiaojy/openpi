@@ -2,6 +2,7 @@ import abc
 from collections.abc import Sequence
 import dataclasses
 import enum
+import json
 import logging
 import pathlib
 from typing import Generic, TypeVar
@@ -240,10 +241,72 @@ class BaseModelConfig(abc.ABC):
         state.replace_by_pure_dict(params)
         return nnx.merge(graphdef, state)
 
-    def load_pytorch(self, train_config, weight_path: str):
+    def load_pytorch(self, train_config, checkpoint_dir_or_file: pathlib.Path | str):
+        """Load PI0 PyTorch weights from a directory or a single ``.safetensors`` file.
+
+        Supports (HF-style) sharded checkpoints: ``model.safetensors.index.json`` plus
+        ``model-*-of-*.safetensors`` shards in the same directory.
+        """
         logger.info(f"train_config: {train_config}")
+        path = pathlib.Path(checkpoint_dir_or_file)
         model = pi0_pytorch.PI0Pytorch(config=train_config.model)
-        safetensors.torch.load_model(model, weight_path)
+
+        state_dict: dict = {}
+        if path.is_file():
+            state_dict = safetensors.torch.load_file(str(path))
+        elif path.is_dir():
+            single = path / "model.safetensors"
+            index = path / "model.safetensors.index.json"
+            if single.is_file():
+                state_dict = safetensors.torch.load_file(str(single))
+            elif index.is_file():
+                with index.open() as f:
+                    weight_index = json.load(f)
+                for shard in sorted(set(weight_index["weight_map"].values())):
+                    shard_path = path / shard
+                    if not shard_path.is_file():
+                        raise FileNotFoundError(f"Missing safetensors shard: {shard_path}")
+                    state_dict.update(safetensors.torch.load_file(str(shard_path)))
+            else:
+                raise FileNotFoundError(
+                    f"No PyTorch weights found in {path} (expected model.safetensors or "
+                    "model.safetensors.index.json with shard files)."
+                )
+        else:
+            raise FileNotFoundError(f"Expected a checkpoint directory or .safetensors file, got: {path}")
+
+        is_rlinf_format = any(
+            k.startswith("paligemma_with_expert.paligemma.model.language_model") for k in state_dict.keys()
+        )
+
+        if is_rlinf_format:
+            logger.info("Detected RLinf-style PyTorch checkpoint. Disabling transformers conversion mapping.")
+
+            paligemma_with_expert = getattr(model, "paligemma_with_expert", None)
+            gen_obj = getattr(paligemma_with_expert, "paligemma", None) if paligemma_with_expert else None
+            model_obj = getattr(gen_obj, "model", None) if gen_obj else None
+
+            gen_cls = type(gen_obj) if gen_obj else None
+            model_cls = type(model_obj) if model_obj else None
+
+            old_gen_mapping = getattr(gen_cls, "_checkpoint_conversion_mapping", None)
+            old_model_mapping = getattr(model_cls, "_checkpoint_conversion_mapping", None)
+
+            try:
+                if gen_cls is not None and hasattr(gen_cls, "_checkpoint_conversion_mapping"):
+                    gen_cls._checkpoint_conversion_mapping = {}
+                if model_cls is not None and hasattr(model_cls, "_checkpoint_conversion_mapping"):
+                    model_cls._checkpoint_conversion_mapping = {}
+
+                model.load_state_dict(state_dict, strict=True)
+            finally:
+                if gen_cls is not None and old_gen_mapping is not None:
+                    gen_cls._checkpoint_conversion_mapping = old_gen_mapping
+                if model_cls is not None and old_model_mapping is not None:
+                    model_cls._checkpoint_conversion_mapping = old_model_mapping
+        else:
+            model.load_state_dict(state_dict, strict=True)
+
         return model
 
     @abc.abstractmethod
