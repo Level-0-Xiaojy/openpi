@@ -3,7 +3,7 @@ velocity_guider/README.md
 # Data directories.
 assets/
 checkpoints/
-data/
+/data/
 wandb/
 datasets/
 offline_test*/
