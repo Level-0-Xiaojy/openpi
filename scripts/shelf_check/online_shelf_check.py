@@ -110,8 +110,8 @@ def main():
     #  货架检测参数
     # ═══════════════════════════════════════════════════════════════
     parser.add_argument("--start", default=DEFAULT_REFERENCE_IMAGE_PATH, help="初始状态深度图路径（.png）")
-    parser.add_argument("--row", type=int, default=250, help="start 图分析行号")
-    parser.add_argument("--check-row", type=int, default=310, help="实时检测行号")
+    parser.add_argument("--row", type=int, default=305, help="start 图分析行号")
+    parser.add_argument("--check-row", type=int, default=305, help="实时检测行号")
     parser.add_argument(
         "--start-valley-offset",
         type=float,
@@ -121,7 +121,7 @@ def main():
     parser.add_argument(
         "--check-valley-offset",
         type=float,
-        default=0.10,
+        default=0.08,
         help="实时检测谷底阈值偏移（米），越大越不容易漏检",
     )
     parser.add_argument("--min-width", type=int, default=40, help="谷底最小宽度（像素）")
