@@ -568,18 +568,25 @@ def main():
                 break
             step += 1
         else:
-            # No command — receive frame and send hold to keep controller alive.
+            # No command — poll controller with short timeout, send hold.
+            got_frame = False
             if args.tcp_server:
                 try:
+                    conn.settimeout(0.5)
                     action_data, images = _recv_state_and_images(conn)
+                    conn.settimeout(None)
                     if action_data is None:
                         logger.error("controller disconnected, exiting loop")
                         break
                     left, right = _extract_current_eef(action_data)
                     driver.update_eef_state(left_pos=left, right_pos=right)
+                    got_frame = True
+                except (socket.timeout, TimeoutError):
+                    conn.settimeout(None)
                 except Exception:
                     logger.warning("failed to receive frame", exc_info=True)
 
+            if got_frame and args.tcp_server:
                 left = driver._last_left_eef.tolist() if driver._last_left_eef is not None else [0]*7
                 right = driver._last_right_eef.tolist() if driver._last_right_eef is not None else [0]*7
                 hold = {"follow1_pos": [left[:] for _ in range(16)],
