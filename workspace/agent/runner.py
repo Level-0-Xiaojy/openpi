@@ -433,6 +433,9 @@ def run_one_cell(
 
     t0 = time.time()
     agent_error = None
+    finish_result = None
+    messages = [{"role": "user", "content": user_msg}]
+    stats = {}
 
     try:
         if provider == "deepseek":
@@ -441,7 +444,6 @@ def run_one_cell(
             if base_url:
                 ds_kwargs["base_url"] = base_url
             client = openai.OpenAI(**ds_kwargs)
-            messages = [{"role": "user", "content": user_msg}]
             finish_result, messages, stats = _run_deepseek_loop(
                 client, model, SYSTEM_PROMPT, messages,
                 max_turns=max_turns, max_tokens=max_tokens, verbose=verbose,
@@ -473,7 +475,7 @@ def run_one_cell(
         "experiment": experiment_name, "model": model, "provider": provider,
         "elapsed_s": round(elapsed, 1), "finish": finish_result,
         "stats": stats, "agent_error": agent_error,
-        "messages": _serialize_messages(messages),
+        "messages": _serialize_messages(messages) if messages else [],
     }
     with open(transcript_path, "w") as f:
         json.dump(record, f, indent=2, default=str)
