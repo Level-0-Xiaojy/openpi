@@ -507,12 +507,15 @@ def main():
     dump_state(driver, images, args.workdir, step_idx=0)
     logger.info("initial state dumped (step 0)")
 
-    # Acknowledge the initial frame so the controller can proceed.
+    # Send initial trajectory (16 waypoints, matches infer_seq move_steps+1).
     if args.tcp_server and conn:
         left = driver._last_left_eef.tolist() if driver._last_left_eef is not None else [0]*7
         right = driver._last_right_eef.tolist() if driver._last_right_eef is not None else [0]*7
-        _send_trajectory(conn, {"follow1_pos": [left], "follow2_pos": [right]})
-        logger.info("initial ack sent to controller")
+        _send_trajectory(conn, {
+            "follow1_pos": [left[:] for _ in range(16)],
+            "follow2_pos": [right[:] for _ in range(16)],
+        })
+        logger.info("initial trajectory sent to controller (16 waypoints)")
 
     # --- REPL loop ---
     # Hybrid mode: while waiting for an Agent command, keep the controller
@@ -562,9 +565,9 @@ def main():
             if args.tcp_server and conn:
                 left = driver._last_left_eef.tolist() if driver._last_left_eef is not None else [0]*7
                 right = driver._last_right_eef.tolist() if driver._last_right_eef is not None else [0]*7
-                # Send a short hold: same pose for a few ticks.
-                hold = {"follow1_pos": [left[:] for _ in range(10)],
-                         "follow2_pos": [right[:] for _ in range(10)]}
+                # 16 waypoints matches infer_seq default (move_steps=15 + prepend).
+                hold = {"follow1_pos": [left[:] for _ in range(16)],
+                         "follow2_pos": [right[:] for _ in range(16)]}
                 _send_trajectory(conn, hold)
 
     if conn:
