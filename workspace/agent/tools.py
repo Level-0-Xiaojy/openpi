@@ -239,7 +239,7 @@ def view_repl_state(step: int | None = None) -> dict:
     return out
 
 
-BLOCKED_ACTIONS = {"exit"}
+BLOCKED_ACTIONS = {"reset", "exit"}
 
 
 def send_command(command: dict, timeout_s: float = 600.0) -> dict:
@@ -248,10 +248,12 @@ def send_command(command: dict, timeout_s: float = 600.0) -> dict:
 
     action = command.get("action") if isinstance(command, dict) else None
     if action in BLOCKED_ACTIONS:
+        reason = "The physical world cannot be reset — single episode only." if action == "reset" else \
+                 "Use the runner lifecycle for this action."
         return {
             "error": (
                 f"action '{action}' is not available to the agent. "
-                f"Recover within the current episode instead."
+                f"{reason} Recover within the current episode instead."
             ),
             "blocked_action": action,
         }

@@ -40,7 +40,7 @@ from typing import Callable
 import cv2
 import numpy as np
 
-from openpi.primitives.driver import RealWorldPrimitiveDriver
+from openpi.primitives.driver import PrimitiveResult, RealWorldPrimitiveDriver
 from scipy.spatial.transform import Rotation as R
 
 logger = logging.getLogger(__name__)
@@ -183,19 +183,19 @@ def execute(driver: RealWorldPrimitiveDriver, cmd: dict, workdir: str, step_idx:
             tol=cmd.get("tol", 0.012),
             target_yaw=cmd.get("target_yaw"),
             yaw_step_clip=cmd.get("yaw_step_clip", 0.10),
-        )
+        ).to_dict()
     elif action == "pi0_pick":
         if vla_cycle is None:
             log["result"] = {"error": "VLA cycle not available (no model loaded?)"}
         else:
-            log["result"] = _execute_pi0_pick(driver, cmd, vla_cycle)
+            log["result"] = _execute_pi0_pick(driver, cmd, vla_cycle).to_dict()
     elif action == "release":
-        log["result"] = driver.release(max_steps=cmd.get("max_steps", 20))
+        log["result"] = driver.release(max_steps=cmd.get("max_steps", 20)).to_dict()
     elif action == "set_gripper":
         log["result"] = driver.set_gripper(
             gripper=float(cmd.get("gripper", -1.0)),
             steps=int(cmd.get("steps", 10)),
-        )
+        ).to_dict()
     elif action == "rotate_wrist":
         log["result"] = driver.rotate_wrist(
             target_yaw=cmd.get("target_yaw"),
@@ -204,7 +204,7 @@ def execute(driver: RealWorldPrimitiveDriver, cmd: dict, workdir: str, step_idx:
             max_steps=cmd.get("max_steps", 40),
             tol=cmd.get("tol", 0.05),
             step_clip=cmd.get("step_clip", 0.10),
-        )
+        ).to_dict()
     elif action == "rotate_pitch":
         log["result"] = driver.rotate_pitch(
             target_pitch=cmd.get("target_pitch"),
@@ -213,13 +213,13 @@ def execute(driver: RealWorldPrimitiveDriver, cmd: dict, workdir: str, step_idx:
             max_steps=cmd.get("max_steps", 40),
             tol=cmd.get("tol", 0.05),
             step_clip=cmd.get("step_clip", 0.10),
-        )
+        ).to_dict()
     elif action == "snapshot":
-        log["result"] = {"name": "snapshot"}
+        log["result"] = PrimitiveResult(name="snapshot", success=True).to_dict()
     elif action == "exit":
-        log["result"] = {"name": "exit"}
+        log["result"] = PrimitiveResult(name="exit", success=True).to_dict()
     else:
-        log["result"] = {"error": f"unknown action {action}"}
+        log["result"] = PrimitiveResult(name="error", success=False, error=f"unknown action {action}").to_dict()
 
     log["elapsed_s"] = round(time.time() - t0, 2)
     log_path = os.path.join(workdir, f"log_{step_idx:02d}.json")
@@ -250,10 +250,15 @@ def _execute_pi0_pick(driver: RealWorldPrimitiveDriver, cmd: dict, vla_cycle: Ca
     chunks_used = 0
 
     track_obj_init_z = None
-    if track_obj is not None and driver.perception:
-        objs = driver.perception.get_objects()
-        if track_obj in objs:
-            track_obj_init_z = float(objs[track_obj][2])
+    if track_obj is not None:
+        if driver.perception is None:
+            logger.warning("pi0_pick: track_obj=%r specified but perception module not configured — object lift cutoff disabled", track_obj)
+        else:
+            objs = driver.perception.get_objects()
+            if track_obj in objs:
+                track_obj_init_z = float(objs[track_obj][2])
+            else:
+                logger.warning("pi0_pick: track_obj=%r not found in perception — object lift cutoff disabled", track_obj)
 
     for c in range(max_chunks):
         action_pred = vla_cycle(object_text)
@@ -292,22 +297,22 @@ def _execute_pi0_pick(driver: RealWorldPrimitiveDriver, cmd: dict, vla_cycle: Ca
                     success = True
                     break
 
-    return {
-        "name": "pi0_pick",
-        "ok": success,
-        "instruction": object_text,
-        "chunks_used": chunks_used,
-        "max_chunks": max_chunks,
-        "peak_lift_m": round(post_min_peak_z - min_z, 4),
-        "min_gripper_opening": round(min_grip, 4),
-        "final_gripper_opening": round(last_grip, 4),
-        "diagnostics": {
+    return PrimitiveResult(
+        name="pi0_pick",
+        success=success,
+        diagnostics={
+            "instruction": object_text,
+            "chunks_used": chunks_used,
+            "max_chunks": max_chunks,
+            "peak_lift_m": round(post_min_peak_z - min_z, 4),
+            "min_gripper_opening": round(min_grip, 4),
+            "final_gripper_opening": round(last_grip, 4),
             "start_eef_z": round(start_z, 4),
             "min_eef_z": round(min_z, 4),
             "descent_m": round(start_z - min_z, 4),
             "descent_done": descent_done,
         },
-    }
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -398,14 +403,11 @@ def main():
 
             obs = {
                 "images": images,
-                "prompt": f"pick up the {object_text}",
+                "prompt": object_text,
                 "state": state,
             }
             result = policy.infer(obs)
             action_pred = result["actions"]
-
-            if args.policy_mode == "sm2sm":
-                action_pred = action_pred[:, 14:28]  # extract master action
 
             move_steps = 20
             action_pred = action_pred[:move_steps, :]

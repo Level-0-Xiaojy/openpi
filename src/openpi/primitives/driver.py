@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-import time
 from typing import Callable
 
 import numpy as np
@@ -23,21 +22,37 @@ logger = logging.getLogger(__name__)
 ActionTrajectory = dict  # {"follow1_pos": [[x,y,z,r,p,y,g], ...], "follow2_pos": [...]}
 
 
-# Sentinel for VLA inference mode in repl_driver.
-
+# ---------------------------------------------------------------------------
+# Primitive result (from primitives.py)
+# ---------------------------------------------------------------------------
 
 @dataclasses.dataclass
 class PrimitiveResult:
+    """Unified return type for all primitives, mirroring primitives.py:PrimitiveResult.
+
+    Every primitive returns this struct so that the REPL loop and Agent
+    get a consistent interface regardless of which primitive was called.
+    """
     name: str
     success: bool = False
-    ok: bool | None = None
+    ok: bool | None = None            # explicit ok; defaults to success if not set
     error: str | None = None
+    diagnostics: dict | None = None   # per-primitive diagnostic fields
+
+    def __post_init__(self):
+        if self.ok is None:
+            self.ok = self.success
 
     def to_dict(self) -> dict:
-        d = dataclasses.asdict(self)
-        d["ok"] = self.ok if self.ok is not None else self.success
+        """JSON-serializable dict for log files."""
+        d = {f.name: getattr(self, f.name) for f in dataclasses.fields(self)}
+        d["ok"] = self.ok
         return d
 
+
+# ---------------------------------------------------------------------------
+# Driver
+# ---------------------------------------------------------------------------
 
 class RealWorldPrimitiveDriver:
     """Primitive driver that sends action trajectories to the ARX controller.
@@ -90,7 +105,6 @@ class RealWorldPrimitiveDriver:
 
     @property
     def eef_yaw(self) -> float:
-        """World-frame yaw from Euler angles (roll, pitch, yaw = indices 3,4,5)."""
         if self._last_left_eef is None:
             raise RuntimeError("EEF state unknown")
         return float(self._last_left_eef[5])
@@ -146,9 +160,9 @@ class RealWorldPrimitiveDriver:
         tol: float = 0.012,
         target_yaw: float | None = None,
         yaw_step_clip: float = 0.10,
-    ) -> dict:
+    ) -> PrimitiveResult:
         if self._last_left_eef is None:
-            raise RuntimeError("Current EEF pose unknown")
+            return PrimitiveResult(name="move_to", error="EEF pose unknown")
 
         current = self._last_left_eef.copy()
         target = np.array(target_xyz, dtype=np.float32)
@@ -157,12 +171,11 @@ class RealWorldPrimitiveDriver:
 
         if dist <= tol:
             logger.info("move_to: already within tol (%.4f m)", dist)
-            # Still send one frame so the controller doesn't hang.
             self._send_action({
                 "follow1_pos": [current.tolist()],
                 "follow2_pos": [self._last_right_eef.tolist()] if self._last_right_eef is not None else [current.tolist()],
             })
-            return {"name": "move_to", "ok": True, "distance": dist, "waypoints": 0}
+            return PrimitiveResult(name="move_to", success=True, diagnostics={"distance": dist, "waypoints": 0})
 
         num_waypoints = min(max_steps, max(1, int(np.ceil(dist / step_clip))))
         waypoints_xyz = np.linspace(current[:3], target, num_waypoints + 1)[1:]
@@ -187,15 +200,15 @@ class RealWorldPrimitiveDriver:
             self._last_left_eef[5] = float(target_yaw)
 
         logger.info("move_to: final_dist=%.4f m in %d waypoints", dist, num_waypoints)
-        return {"name": "move_to", "ok": True, "distance": dist, "waypoints": num_waypoints}
+        return PrimitiveResult(name="move_to", success=True, diagnostics={"distance": dist, "waypoints": num_waypoints})
 
     # ------------------------------------------------------------------
     # Primitive: release
     # ------------------------------------------------------------------
 
-    def release(self, max_steps: int = 20) -> dict:
+    def release(self, max_steps: int = 20) -> PrimitiveResult:
         if self._last_left_eef is None:
-            raise RuntimeError("Current EEF pose unknown")
+            return PrimitiveResult(name="release", error="EEF pose unknown")
 
         base = self._last_left_eef.tolist()
         follow1 = [base[:] for _ in range(max_steps)]
@@ -209,15 +222,15 @@ class RealWorldPrimitiveDriver:
         self._last_gripper_left = 0.0
 
         logger.info("release: %d steps", max_steps)
-        return {"name": "release", "ok": True}
+        return PrimitiveResult(name="release", success=True)
 
     # ------------------------------------------------------------------
     # Primitive: set_gripper
     # ------------------------------------------------------------------
 
-    def set_gripper(self, gripper: float, steps: int = 10) -> dict:
+    def set_gripper(self, gripper: float, steps: int = 10) -> PrimitiveResult:
         if self._last_left_eef is None:
-            raise RuntimeError("Current EEF pose unknown")
+            return PrimitiveResult(name="set_gripper", error="EEF pose unknown")
 
         base = self._last_left_eef.tolist()
         follow1 = [base[:] for _ in range(steps)]
@@ -231,7 +244,7 @@ class RealWorldPrimitiveDriver:
         self._last_gripper_left = abs(float(gripper))
 
         logger.info("set_gripper: %.3f for %d steps", gripper, steps)
-        return {"name": "set_gripper", "ok": True}
+        return PrimitiveResult(name="set_gripper", success=True)
 
     # ------------------------------------------------------------------
     # Primitive: rotate_wrist (Phase 3)
@@ -246,18 +259,17 @@ class RealWorldPrimitiveDriver:
         max_steps: int = 40,
         tol: float = 0.05,
         step_clip: float = 0.10,
-    ) -> dict:
-        """Rotate wrist around world z-axis using Euler yaw directly."""
+    ) -> PrimitiveResult:
         if self._last_left_eef is None:
-            raise RuntimeError("Current EEF pose unknown")
+            return PrimitiveResult(name="rotate_wrist", error="EEF pose unknown")
 
         start_yaw = self.eef_yaw
         if target_yaw is None and delta_yaw is None:
-            return {"name": "rotate_wrist", "error": "need target_yaw or delta_yaw"}
+            return PrimitiveResult(name="rotate_wrist", error="need target_yaw or delta_yaw")
         if target_yaw is None:
             target_yaw = start_yaw + float(delta_yaw)
 
-        for step in range(max_steps):
+        for _step in range(max_steps):
             cur_yaw = self.eef_yaw
             err = (float(target_yaw) - cur_yaw + np.pi) % (2 * np.pi) - np.pi
             if abs(err) < tol:
@@ -275,7 +287,11 @@ class RealWorldPrimitiveDriver:
         final_yaw = self.eef_yaw
         final_err = round((float(target_yaw) - final_yaw + np.pi) % (2 * np.pi) - np.pi, 4)
         logger.info("rotate_wrist: start=%.3f target=%.3f final=%.3f err=%.3f", start_yaw, float(target_yaw), final_yaw, final_err)
-        return {"name": "rotate_wrist", "start_yaw": round(start_yaw, 3), "target_yaw": round(float(target_yaw), 3), "final_yaw": round(final_yaw, 3), "final_err": final_err, "ok": abs(final_err) < tol * 2}
+        return PrimitiveResult(
+            name="rotate_wrist", success=abs(final_err) < tol * 2,
+            diagnostics={"start_yaw": round(start_yaw, 3), "target_yaw": round(float(target_yaw), 3),
+                         "final_yaw": round(final_yaw, 3), "final_err": final_err},
+        )
 
     # ------------------------------------------------------------------
     # Primitive: rotate_pitch (Phase 3)
@@ -290,18 +306,17 @@ class RealWorldPrimitiveDriver:
         max_steps: int = 40,
         tol: float = 0.05,
         step_clip: float = 0.10,
-    ) -> dict:
-        """Tilt gripper around world x-axis using Euler pitch directly."""
+    ) -> PrimitiveResult:
         if self._last_left_eef is None:
-            raise RuntimeError("Current EEF pose unknown")
+            return PrimitiveResult(name="rotate_pitch", error="EEF pose unknown")
 
         start_pitch = self.eef_pitch
         if target_pitch is None and delta_pitch is None:
-            return {"name": "rotate_pitch", "error": "need target_pitch or delta_pitch"}
+            return PrimitiveResult(name="rotate_pitch", error="need target_pitch or delta_pitch")
         if target_pitch is None:
             target_pitch = start_pitch + float(delta_pitch)
 
-        for step in range(max_steps):
+        for _step in range(max_steps):
             cur_pitch = self.eef_pitch
             err = (float(target_pitch) - cur_pitch + np.pi) % (2 * np.pi) - np.pi
             if abs(err) < tol:
@@ -319,4 +334,8 @@ class RealWorldPrimitiveDriver:
         final_pitch = self.eef_pitch
         final_err = round((float(target_pitch) - final_pitch + np.pi) % (2 * np.pi) - np.pi, 4)
         logger.info("rotate_pitch: start=%.3f target=%.3f final=%.3f err=%.3f", start_pitch, float(target_pitch), final_pitch, final_err)
-        return {"name": "rotate_pitch", "start_pitch": round(start_pitch, 3), "target_pitch": round(float(target_pitch), 3), "final_pitch": round(final_pitch, 3), "final_err": final_err, "ok": abs(final_err) < tol * 2}
+        return PrimitiveResult(
+            name="rotate_pitch", success=abs(final_err) < tol * 2,
+            diagnostics={"start_pitch": round(start_pitch, 3), "target_pitch": round(float(target_pitch), 3),
+                         "final_pitch": round(final_pitch, 3), "final_err": final_err},
+        )

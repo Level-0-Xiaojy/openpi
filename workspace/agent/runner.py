@@ -379,6 +379,54 @@ def run_one_cell(
         if not (Path(workdir) / "state_00.json").exists():
             raise RuntimeError(f"--no_driver but {workdir}/state_00.json missing")
 
+    def _emergency_save(error_msg: str | None = None):
+        """Salvage recipe + audit from workdir if agent crashes mid-run."""
+        wd = Path(workdir)
+        out = Path(output_dir)
+        if not wd.exists():
+            return
+        recipe_path = out / f"recipe_{experiment_name}.jsonl"
+        audit_path = out / f"{experiment_name}.json"
+        if recipe_path.exists() and audit_path.exists():
+            return
+
+        logs = {}
+        for lp in sorted(wd.glob("log_*.json")):
+            try:
+                ln = int(lp.stem.split("_")[1])
+                logs[ln] = json.loads(lp.read_text())
+            except Exception:
+                continue
+
+        if not recipe_path.exists() and logs:
+            lines = []
+            for ln in sorted(logs.keys()):
+                cmd = logs[ln].get("command") or {}
+                if cmd.get("action") in ("exit",):
+                    continue
+                lines.append(json.dumps(cmd))
+            if lines:
+                out.mkdir(parents=True, exist_ok=True)
+                recipe_path.write_text("\n".join(lines) + "\n")
+                if verbose:
+                    print(f"[agent] [emergency_save] wrote {recipe_path}")
+
+        if not audit_path.exists() and logs:
+            last_log = logs[max(logs)]
+            audit = {
+                "experiment": experiment_name,
+                "model": model,
+                "provider": provider,
+                "regime": "strict",
+                "strategy_notes": f"emergency-saved after agent error: {error_msg}" if error_msg else "emergency-saved (agent did not call finish)",
+                "steps_completed": len(logs),
+                "agent_error": error_msg,
+            }
+            out.mkdir(parents=True, exist_ok=True)
+            audit_path.write_text(json.dumps(audit, indent=2, default=str))
+            if verbose:
+                print(f"[agent] [emergency_save] wrote {audit_path}")
+
     client_kwargs = {"api_key": api_key, "max_retries": 8, "timeout": 120.0}
     if base_url:
         client_kwargs["base_url"] = base_url
@@ -412,6 +460,10 @@ def run_one_cell(
         if verbose:
             print(f"[agent] EXCEPTION: {agent_error}")
     finally:
+        try:
+            _emergency_save(agent_error)
+        except Exception:
+            pass
         if proc is not None:
             stop_driver(proc, workdir=workdir)
 

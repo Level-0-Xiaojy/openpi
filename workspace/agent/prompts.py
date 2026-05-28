@@ -101,9 +101,10 @@ WORKFLOW
    calibration data and gotchas from past experiments. Read
    workspace/env_calibration.md for the workspace bounds.
 
-2. INSPECT INITIAL: view_repl_state(step=0). Read state.objects[*]_pos
-   and look at the image. Identify the target object and the goal
-   region.
+2. INSPECT INITIAL: view_repl_state(step=0).
+   If state.objects is empty (perception module not configured), rely
+   on camera images alone for object positions.
+   Look at the image. Identify the target object and the goal region.
 
 3. PLAN, then EXECUTE one command at a time via send_command:
    Typical pick-and-place template:
@@ -162,6 +163,7 @@ OUTPUT DISCIPLINE
 - 1-2 sentence reasoning before each tool call.
 - Don't re-read files you already read.
 - Numerical coords in 3 decimals is enough.
+- When finish is called the agent halts. Save task logs BEFORE finish.
 """
 
 # Format with calibration values
