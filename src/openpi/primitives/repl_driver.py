@@ -515,67 +515,57 @@ def main():
         logger.info("initial ack sent to controller")
 
     # --- REPL loop ---
-    # Protocol: for each step —
-    #   1. drain any stale frame from controller (controller may have sent
-    #      a new frame after the previous response)
-    #   2. wait for Agent command
-    #   3. execute command (sends trajectory to controller)
-    #   4. receive the NEXT state frame from controller (after controller
-    #      has processed the trajectory)
-    #   5. dump state + done flag
+    # Hybrid mode: while waiting for an Agent command, keep the controller
+    # alive by sending hold trajectories. When a command arrives, execute
+    # it in the next cycle.
     cmd_path = os.path.join(args.workdir, "command.json")
     step = 1
     while step <= args.max_steps:
-        logger.info("step %d: waiting for %s", step, cmd_path)
-
-        # Drain any stale frame that arrived since the last cycle.
+        # Always receive the latest frame from controller first.
         images = None
         if args.tcp_server:
             try:
-                conn.settimeout(0.1)
                 action_data, images = _recv_state_and_images(conn)
-                conn.settimeout(None)
-                if action_data is not None:
-                    left, right = _extract_current_eef(action_data)
-                    driver.update_eef_state(left_pos=left, right_pos=right)
-            except (socket.timeout, TimeoutError):
-                conn.settimeout(None)
-                images = None
+                if action_data is None:
+                    logger.error("controller disconnected, exiting loop")
+                    break
+                left, right = _extract_current_eef(action_data)
+                driver.update_eef_state(left_pos=left, right_pos=right)
             except Exception:
-                logger.warning("failed to drain stale frame", exc_info=True)
+                logger.warning("failed to receive frame", exc_info=True)
 
-        cmd = wait_for_command(cmd_path, timeout_s=3600.0)
-        if cmd is None:
-            logger.info("step %d: timeout", step)
-            break
-
-        logger.info("step %d received: %s", step, cmd)
-
-        log = execute(driver, cmd, args.workdir, step, vla_cycle=vla_cycle)
-
-        # Receive the controller's response frame (sent after processing our trajectory).
-        if args.tcp_server:
+        # Check for Agent command (non-blocking).
+        cmd = None
+        if os.path.exists(cmd_path):
             try:
-                conn.settimeout(30.0)
-                action_data, images = _recv_state_and_images(conn)
-                conn.settimeout(None)
-                if action_data is not None:
-                    left, right = _extract_current_eef(action_data)
-                    driver.update_eef_state(left_pos=left, right_pos=right)
+                with open(cmd_path) as f:
+                    cmd = json.load(f)
+                os.remove(cmd_path)
             except Exception:
-                logger.warning("failed to receive state frame", exc_info=True)
+                pass
 
-        dump_state(driver, images, args.workdir, step)
+        if cmd:
+            logger.info("step %d received: %s", step, cmd)
+            log = execute(driver, cmd, args.workdir, step, vla_cycle=vla_cycle)
+            dump_state(driver, images, args.workdir, step)
 
-        flag_path = os.path.join(args.workdir, f"done_{step:02d}.flag")
-        with open(flag_path, "w") as f:
-            f.write("ok")
+            flag_path = os.path.join(args.workdir, f"done_{step:02d}.flag")
+            with open(flag_path, "w") as f:
+                f.write("ok")
 
-        logger.info("step %d done (%.1fs): %s", step, log["elapsed_s"], log["result"])
-
-        if cmd.get("action") == "exit":
-            break
-        step += 1
+            logger.info("step %d done (%.1fs): %s", step, log["elapsed_s"], log["result"])
+            if cmd.get("action") == "exit":
+                break
+            step += 1
+        else:
+            # No command yet — send hold trajectory to keep controller alive.
+            if args.tcp_server and conn:
+                left = driver._last_left_eef.tolist() if driver._last_left_eef is not None else [0]*7
+                right = driver._last_right_eef.tolist() if driver._last_right_eef is not None else [0]*7
+                # Send a short hold: same pose for a few ticks.
+                hold = {"follow1_pos": [left[:] for _ in range(10)],
+                         "follow2_pos": [right[:] for _ in range(10)]}
+                _send_trajectory(conn, hold)
 
     if conn:
         conn.close()
