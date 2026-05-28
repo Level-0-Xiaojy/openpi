@@ -1844,10 +1844,10 @@ _CONFIGS = [
         # exp_name="fold_towel_gqy_03170318_sm2sm_h3f2_a20_dm10dh50df50po20",
     ),
     #
-    # ARX x2robot inference config (pi05).
+    # ARX x2robot inference config.
     TrainConfig(
-        name="pi05_x2robot",
-        model=pi0_config.Pi0Config(pi05=True),
+        name="pi0_x2robot",
+        model=pi0_config.Pi0Config(),
         data=LeRobotX2robotDataConfig(
             repo_id="x2robot",
             action_dim=14,

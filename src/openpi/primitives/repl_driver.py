@@ -17,7 +17,7 @@ Commands (in command.json)::
 Usage::
 
     python -m openpi.primitives.repl_driver \\
-        --config pi05_x2robot \\
+        --config pi0_x2robot \\
         --checkpoint-dir /path/to/checkpoint \\
         [--workdir /tmp/hybrid_repl] \\
         [--max-steps 40] \\
@@ -333,7 +333,7 @@ def load_policy(config_name: str, checkpoint_dir: str):
 
 def main():
     p = argparse.ArgumentParser(description="REPL driver for ARX real robot")
-    p.add_argument("--config", default="pi05_x2robot", help="Training config name")
+    p.add_argument("--config", default="pi0_x2robot", help="Training config name")
     p.add_argument("--checkpoint-dir", help="Path to Pi0.5 checkpoint directory")
     p.add_argument("--workdir", default="/tmp/hybrid_repl", help="REPL work directory")
     p.add_argument("--max-steps", type=int, default=40, help="Max REPL commands per session")

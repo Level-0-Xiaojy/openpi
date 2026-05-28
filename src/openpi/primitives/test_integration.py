@@ -75,7 +75,7 @@ def main():
     parser = argparse.ArgumentParser(description="Integration test for REPL driver")
     parser.add_argument("--load-model", action="store_true", help="Load Pi0.5 and test VLA inference")
     parser.add_argument("--checkpoint-dir", help="Path to Pi0.5 checkpoint")
-    parser.add_argument("--config", default="pi05_x2robot")
+    parser.add_argument("--config", default="pi0_x2robot")
     parser.add_argument("--tcp-ip", default="127.0.0.1")
     parser.add_argument("--tcp-port", type=int, default=57771)
     parser.add_argument("--workdir", default="/tmp/hybrid_repl_test")

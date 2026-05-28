@@ -9,7 +9,7 @@
 #   5. Send {"action":"exit"} to the driver, kill it, return.
 #
 # Usage:
-#   bash run_one_cell.sh <experiment_name> [--config pi05_x2robot] [--checkpoint-dir /path/to/ckpt]
+#   bash run_one_cell.sh <experiment_name> [--config pi0_x2robot] [--checkpoint-dir /path/to/ckpt]
 #
 # Idempotent: skips if audit already exists.
 # Outputs: $OUTPUT_DIR/{recipe_<exp>.jsonl, <exp>.json, claude_<exp>.txt}
@@ -17,7 +17,7 @@
 set -e
 
 EXPERIMENT=${1:?Usage: $0 <experiment_name>}
-CONFIG=${CONFIG:-pi05_x2robot}
+CONFIG=${CONFIG:-pi0_x2robot}
 CHECKPOINT_DIR=${CHECKPOINT_DIR:-}
 TCP_SERVER=${TCP_SERVER:-}  # set to "1" for server mode
 TCP_IP=${TCP_IP:-192.168.77.58}

@@ -38,7 +38,7 @@ DRIVER_SCRIPT = str(OPENPI_ROOT / "src" / "openpi" / "primitives" / "repl_driver
 
 def start_driver(
     workdir: str = DEFAULT_WORKDIR,
-    config: str = "pi05_x2robot",
+    config: str = "pi0_x2robot",
     checkpoint_dir: str | None = None,
     max_steps: int = 40,
     tcp_server: bool = False,
@@ -352,7 +352,7 @@ def run_one_cell(
     verbose: bool = True,
     base_url: str | None = None,
     workdir: str = DEFAULT_WORKDIR,
-    config: str = "pi05_x2robot",
+    config: str = "pi0_x2robot",
     checkpoint_dir: str | None = None,
     tcp_server: bool = False,
     tcp_ip: str = "192.168.77.58",
@@ -499,7 +499,7 @@ def main() -> int:
     ap.add_argument("--base_url", default=None)
     ap.add_argument("--no_driver", action="store_true")
     ap.add_argument("--workdir", default=DEFAULT_WORKDIR)
-    ap.add_argument("--config", default="pi05_x2robot")
+    ap.add_argument("--config", default="pi0_x2robot")
     ap.add_argument("--checkpoint-dir", default=None)
     ap.add_argument("--tcp-server", action="store_true")
     ap.add_argument("--tcp-ip", default="192.168.77.58")
