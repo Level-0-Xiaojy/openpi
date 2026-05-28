@@ -177,16 +177,38 @@ class RealWorldPrimitiveDriver:
             })
             return PrimitiveResult(name="move_to", success=True, diagnostics={"distance": dist, "waypoints": 0})
 
-        num_waypoints = min(max_steps, max(1, int(np.ceil(dist / step_clip))))
-        waypoints_xyz = np.linspace(current[:3], target, num_waypoints + 1)[1:]
+        # Trapezoidal velocity profile → dense smooth waypoints (16 steps,
+        # matching infer_seq default). Each waypoint is a small uniform
+        # displacement, producing smooth motion.
+        move_steps = 16
+        ramp = move_steps // 4          # 4 accel + 4 decel
+        cruise = move_steps - 2 * ramp  # 8 cruise
+
+        # Build velocity profile: ramp-up → flat → ramp-down
+        vel = np.ones(move_steps, dtype=np.float32)
+        for i in range(ramp):
+            vel[i] = (i + 1) / ramp       # 1/4, 2/4, 3/4, 4/4
+        for i in range(move_steps - ramp, move_steps):
+            vel[i] = (move_steps - i) / ramp  # 4/4, 3/4, 2/4, 1/4
+        vel = vel / vel.sum()               # normalize to total = 1
+
+        # Integrate velocity to position along [0, 1]
+        pos = np.cumsum(vel)
+        pos = pos / pos[-1]
+
+        start_xyz = current[:3].copy()
+        start_rpy = current[3:6].copy()
 
         follow1 = []
-        for wp in waypoints_xyz:
-            action = current.copy()
-            action[:3] = wp
-            if target_yaw is not None and num_waypoints > 0:
-                yaw_err = (target_yaw - action[5] + np.pi) % (2 * np.pi) - np.pi
-                action[5] += np.clip(yaw_err / num_waypoints, -yaw_step_clip, yaw_step_clip)
+        for i in range(move_steps):
+            t = float(pos[i])
+            action = np.zeros(self.ARM_DOF, dtype=np.float32)
+            action[:3] = start_xyz + diff * t
+            if target_yaw is not None:
+                yaw_err = (target_yaw - start_rpy[2] + np.pi) % (2 * np.pi) - np.pi
+                action[5] = start_rpy[2] + yaw_err * t
+            else:
+                action[3:6] = start_rpy
             action[6] = gripper_action
             follow1.append(action.tolist())
 
