@@ -490,16 +490,34 @@ def main():
 
     # --- REPL loop ---
     # Protocol: for each step —
-    #   1. wait for Agent command
-    #   2. execute command (sends trajectory to controller)
-    #   3. receive next state frame from controller
-    #   4. dump state + done flag
-    # This ordering avoids deadlock: we respond to the current frame
-    # before asking for the next one.
+    #   1. drain any stale frame from controller (controller may have sent
+    #      a new frame after the previous response)
+    #   2. wait for Agent command
+    #   3. execute command (sends trajectory to controller)
+    #   4. receive the NEXT state frame from controller (after controller
+    #      has processed the trajectory)
+    #   5. dump state + done flag
     cmd_path = os.path.join(args.workdir, "command.json")
     step = 1
     while step <= args.max_steps:
         logger.info("step %d: waiting for %s", step, cmd_path)
+
+        # Drain any stale frame that arrived since the last cycle.
+        images = None
+        if args.tcp_server:
+            try:
+                conn.settimeout(0.1)
+                action_data, images = _recv_state_and_images(conn)
+                driver.update_eef_state(
+                    left_pos=np.array(action_data.get("follow1_pos", [0]*7)),
+                    right_pos=np.array(action_data.get("follow2_pos", [0]*7)),
+                )
+                conn.settimeout(None)
+            except (socket.timeout, TimeoutError):
+                conn.settimeout(None)
+                images = None
+            except Exception:
+                logger.warning("failed to drain stale frame", exc_info=True)
 
         cmd = wait_for_command(cmd_path, timeout_s=3600.0)
         if cmd is None:
@@ -510,13 +528,12 @@ def main():
 
         log = execute(driver, cmd, args.workdir, step, vla_cycle=vla_cycle)
 
-        # In server mode, receive the next state frame AFTER executing the
-        # command (controller has had time to process the trajectory and
-        # send updated state).
-        images = None
+        # Receive the controller's response frame (sent after processing our trajectory).
         if args.tcp_server:
             try:
+                conn.settimeout(30.0)
                 action_data, images = _recv_state_and_images(conn)
+                conn.settimeout(None)
                 driver.update_eef_state(
                     left_pos=np.array(action_data.get("follow1_pos", [0]*7)),
                     right_pos=np.array(action_data.get("follow2_pos", [0]*7)),
