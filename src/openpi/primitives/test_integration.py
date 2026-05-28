@@ -24,7 +24,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-OPENPI_ROOT = Path(os.environ.get("OPENPI_ROOT", "/mnt/public/nieyi/code/agentic/openpi"))
+OPENPI_ROOT = Path(os.environ.get("OPENPI_ROOT", os.getcwd()))
 
 # ---------------------------------------------------------------------------
 # Test command sequences
@@ -90,7 +90,7 @@ def main():
     driver_log = str(workdir.parent / f"{workdir.name}_driver.log")
     mock_log = str(workdir.parent / f"{workdir.name}_mock.log")
 
-    python = str(OPENPI_ROOT / ".venv" / "bin" / "python")
+    python = os.environ.get("PYTHON_BIN", sys.executable)
 
     # --- 1. Start REPL driver ---
     logger.info("=== starting REPL driver ===")

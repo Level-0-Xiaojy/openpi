@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 
 WORKDIR = Path(os.environ.get("HYBRID_REPL_WORKDIR", "/tmp/hybrid_repl"))
-OPENPI_ROOT = Path(os.environ.get("OPENPI_ROOT", "/mnt/public/nieyi/code/agentic/openpi"))
+OPENPI_ROOT = Path(os.environ.get("OPENPI_ROOT", str(Path(__file__).resolve().parent.parent.parent)))
 
 
 def set_workdir(path: str | os.PathLike) -> None:

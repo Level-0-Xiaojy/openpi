@@ -17,7 +17,7 @@ import sys
 import time
 from pathlib import Path
 
-OPENPI_ROOT = Path(os.environ.get("OPENPI_ROOT", "/mnt/public/nieyi/code/agentic/openpi"))
+OPENPI_ROOT = Path(os.environ.get("OPENPI_ROOT", str(Path(__file__).resolve().parent.parent.parent)))
 DEFAULT_WORKDIR = "/tmp/hybrid_repl"
 
 _THIS_DIR = Path(__file__).resolve().parent
