@@ -524,20 +524,7 @@ def main():
     cmd_path = os.path.join(args.workdir, "command.json")
     step = 1
     while step <= args.max_steps:
-        # Always receive the latest frame from controller first.
-        images = None
-        if args.tcp_server:
-            try:
-                action_data, images = _recv_state_and_images(conn)
-                if action_data is None:
-                    logger.error("controller disconnected, exiting loop")
-                    break
-                left, right = _extract_current_eef(action_data)
-                driver.update_eef_state(left_pos=left, right_pos=right)
-            except Exception:
-                logger.warning("failed to receive frame", exc_info=True)
-
-        # Check for Agent command (non-blocking).
+        # Check for Agent command (non-blocking poll).
         cmd = None
         if os.path.exists(cmd_path):
             try:
@@ -547,25 +534,54 @@ def main():
             except Exception:
                 pass
 
+        images = None
         if cmd:
             logger.info("step %d received: %s", step, cmd)
             log = execute(driver, cmd, args.workdir, step, vla_cycle=vla_cycle)
-            dump_state(driver, images, args.workdir, step)
 
+            # Drain stale frames and get the POST-execution state from controller.
+            if args.tcp_server:
+                try:
+                    conn.settimeout(0.1)
+                    latest_data, latest_images = None, None
+                    while True:
+                        try:
+                            action_data, imgs = _recv_state_and_images(conn)
+                            if action_data is not None:
+                                latest_data, latest_images = action_data, imgs
+                        except (socket.timeout, TimeoutError):
+                            break
+                    conn.settimeout(None)
+                    if latest_data is not None:
+                        left, right = _extract_current_eef(latest_data)
+                        driver.update_eef_state(left_pos=left, right_pos=right)
+                        images = latest_images
+                except Exception:
+                    logger.warning("failed to drain frames", exc_info=True)
+
+            dump_state(driver, images, args.workdir, step)
             flag_path = os.path.join(args.workdir, f"done_{step:02d}.flag")
             with open(flag_path, "w") as f:
                 f.write("ok")
-
             logger.info("step %d done (%.1fs): %s", step, log["elapsed_s"], log["result"])
             if cmd.get("action") == "exit":
                 break
             step += 1
         else:
-            # No command yet — send hold trajectory to keep controller alive.
-            if args.tcp_server and conn:
+            # No command — receive frame and send hold to keep controller alive.
+            if args.tcp_server:
+                try:
+                    action_data, images = _recv_state_and_images(conn)
+                    if action_data is None:
+                        logger.error("controller disconnected, exiting loop")
+                        break
+                    left, right = _extract_current_eef(action_data)
+                    driver.update_eef_state(left_pos=left, right_pos=right)
+                except Exception:
+                    logger.warning("failed to receive frame", exc_info=True)
+
                 left = driver._last_left_eef.tolist() if driver._last_left_eef is not None else [0]*7
                 right = driver._last_right_eef.tolist() if driver._last_right_eef is not None else [0]*7
-                # 16 waypoints matches infer_seq default (move_steps=15 + prepend).
                 hold = {"follow1_pos": [left[:] for _ in range(16)],
                          "follow2_pos": [right[:] for _ in range(16)]}
                 _send_trajectory(conn, hold)

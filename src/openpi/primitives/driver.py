@@ -216,13 +216,13 @@ class RealWorldPrimitiveDriver:
 
         self._send_action({"follow1_pos": follow1, "follow2_pos": follow2})
 
-        self._last_left_eef[:3] = waypoints_xyz[-1]
+        self._last_left_eef[:3] = follow1[-1][:3]
         self._last_left_eef[6] = gripper_action
         if target_yaw is not None:
             self._last_left_eef[5] = float(target_yaw)
 
-        logger.info("move_to: final_dist=%.4f m in %d waypoints", dist, num_waypoints)
-        return PrimitiveResult(name="move_to", success=True, diagnostics={"distance": dist, "waypoints": num_waypoints})
+        logger.info("move_to: final_dist=%.4f m in %d waypoints", dist, move_steps)
+        return PrimitiveResult(name="move_to", success=True, diagnostics={"distance": dist, "waypoints": move_steps})
 
     # ------------------------------------------------------------------
     # Primitive: release
