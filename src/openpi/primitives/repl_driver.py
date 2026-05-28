@@ -68,25 +68,55 @@ def _read_image(sock: socket.socket) -> np.ndarray:
     return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 
-def _recv_state_and_images(conn: socket.socket) -> tuple[dict, dict[str, np.ndarray]]:
+def _recv_state_and_images(conn: socket.socket) -> tuple[dict | None, dict[str, np.ndarray] | None]:
     """Receive one observation frame from the ARX controller.
 
-    Protocol (matching x2robot_infer.py):
-      1. 4-byte length prefix + JSON payload with follow1_pos / follow2_pos
-      2. Three JPEG images (left, front, right) each with 4-byte length prefix
-
-    Returns (action_data, images) where action_data has 'follow1_pos' and 'follow2_pos'.
+    Compatible with both x2robot_infer.py (1D follow_pos) and
+    x2robot_infer_seq.py (2D follow_pos with history).
+    Handles client disconnect gracefully (TCP server may re-accept).
     """
-    data_size = struct.unpack("<L", conn.recv(4))[0]
-    raw = _recv_all(conn, data_size)
+    try:
+        header = conn.recv(4)
+        if not header or len(header) < 4:
+            return None, None
+        data_size = struct.unpack("<L", header)[0]
+        raw = _recv_all(conn, data_size)
+        if raw is None:
+            return None, None
+    except (ConnectionResetError, BrokenPipeError, OSError) as e:
+        logger.warning("controller disconnected during recv: %s", e)
+        return None, None
+    except Exception:
+        logger.warning("failed to receive state frame header", exc_info=True)
+        return None, None
+
     action_data = json.loads(raw.decode("utf-8"))
 
-    images = {
-        "left_wrist_view": _read_image(conn),
-        "face_view": _read_image(conn),
-        "right_wrist_view": _read_image(conn),
-    }
+    try:
+        images = {
+            "left_wrist_view": _read_image(conn),
+            "face_view": _read_image(conn),
+            "right_wrist_view": _read_image(conn),
+        }
+    except Exception:
+        logger.warning("failed to receive images", exc_info=True)
+        return action_data, None
+
     return action_data, images
+
+
+def _extract_current_eef(action_data: dict) -> tuple[np.ndarray, np.ndarray]:
+    """Extract current (last) EEF state from follow1_pos/follow2_pos.
+
+    Handles both 1D (single frame) and 2D (history sequence) formats.
+    """
+    left = np.array(action_data.get("follow1_pos", [[0]*7]), dtype=np.float32)
+    right = np.array(action_data.get("follow2_pos", [[0]*7]), dtype=np.float32)
+    if left.ndim == 1:
+        left = np.expand_dims(left, 0)
+    if right.ndim == 1:
+        right = np.expand_dims(right, 0)
+    return left[-1], right[-1]
 
 
 def _send_trajectory(conn: socket.socket, trajectory: dict) -> None:
@@ -425,20 +455,15 @@ def main():
     if policy is not None and args.tcp_server:
         # Only available in TCP server mode (controller sends us state+images).
         def _vla_cycle(object_text: str) -> np.ndarray | None:
-            try:
-                action_data, images = _recv_state_and_images(conn)
-                driver.update_eef_state(
-                    left_pos=np.array(action_data.get("follow1_pos", [0]*7)),
-                    right_pos=np.array(action_data.get("follow2_pos", [0]*7)),
-                )
-            except Exception:
-                logger.warning("vla_cycle: failed to receive state", exc_info=True)
+            action_data, images = _recv_state_and_images(conn)
+            if action_data is None:
+                logger.warning("vla_cycle: controller disconnected")
                 return None
 
-            slave_state = np.concatenate([
-                action_data.get("follow1_pos", [0]*7),
-                action_data.get("follow2_pos", [0]*7),
-            ])
+            left, right = _extract_current_eef(action_data)
+            driver.update_eef_state(left_pos=left, right_pos=right)
+
+            slave_state = np.concatenate([left, right])
             state = np.concatenate([slave_state, slave_state])  # 28D for sm2sm
 
             obs = {
@@ -468,13 +493,14 @@ def main():
     # --- Initial state ---
     images = None
     if args.tcp_server:
-        # Receive first frame from controller.
         try:
             action_data, images = _recv_state_and_images(conn)
-            driver.update_eef_state(
-                left_pos=np.array(action_data.get("follow1_pos", [0]*7)),
-                right_pos=np.array(action_data.get("follow2_pos", [0]*7)),
-            )
+            if action_data is None:
+                logger.error("controller disconnected before initial state")
+                conn.close()
+                return
+            left, right = _extract_current_eef(action_data)
+            driver.update_eef_state(left_pos=left, right_pos=right)
         except Exception:
             logger.warning("failed to receive initial state from controller", exc_info=True)
 
@@ -508,11 +534,10 @@ def main():
             try:
                 conn.settimeout(0.1)
                 action_data, images = _recv_state_and_images(conn)
-                driver.update_eef_state(
-                    left_pos=np.array(action_data.get("follow1_pos", [0]*7)),
-                    right_pos=np.array(action_data.get("follow2_pos", [0]*7)),
-                )
                 conn.settimeout(None)
+                if action_data is not None:
+                    left, right = _extract_current_eef(action_data)
+                    driver.update_eef_state(left_pos=left, right_pos=right)
             except (socket.timeout, TimeoutError):
                 conn.settimeout(None)
                 images = None
@@ -534,10 +559,9 @@ def main():
                 conn.settimeout(30.0)
                 action_data, images = _recv_state_and_images(conn)
                 conn.settimeout(None)
-                driver.update_eef_state(
-                    left_pos=np.array(action_data.get("follow1_pos", [0]*7)),
-                    right_pos=np.array(action_data.get("follow2_pos", [0]*7)),
-                )
+                if action_data is not None:
+                    left, right = _extract_current_eef(action_data)
+                    driver.update_eef_state(left_pos=left, right_pos=right)
             except Exception:
                 logger.warning("failed to receive state frame", exc_info=True)
 
