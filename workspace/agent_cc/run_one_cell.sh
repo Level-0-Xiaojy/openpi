@@ -50,8 +50,9 @@ echo "[$(date +%T)] [$EXPERIMENT] starting driver"
 rm -rf "$WORKDIR"
 mkdir -p "$WORKDIR"
 
+PYTHON_BIN="${PYTHON_BIN:-python}"
 DRIVER_CMD=(
-    "$OPENPI_ROOT/.venv/bin/python"
+    "$PYTHON_BIN"
     -m openpi.primitives.repl_driver
     --config "$CONFIG"
     --workdir "$WORKDIR"
