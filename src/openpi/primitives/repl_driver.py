@@ -319,12 +319,52 @@ def _execute_pi0_pick(driver: RealWorldPrimitiveDriver, cmd: dict, vla_cycle: Ca
 # Policy loading
 # ---------------------------------------------------------------------------
 
-def load_policy(config_name: str, checkpoint_dir: str):
-    """Load a Pi0.5 policy. Heavy imports (JAX/torch) happen only here."""
+def _find_asset_id(checkpoint_dir: str) -> str | None:
+    """Auto-detect asset_id from checkpoint's assets/ directory.
+
+    If assets/ has exactly one subdirectory containing norm_stats.json, return its name.
+    This avoids hardcoding the asset_id in the config.
+    """
+    assets_dir = Path(checkpoint_dir) / "assets"
+    if not assets_dir.is_dir():
+        return None
+    candidates = []
+    for d in assets_dir.iterdir():
+        if d.is_dir() and (d / "norm_stats.json").exists():
+            candidates.append(d.name)
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
+
+
+def load_policy(config_name: str, checkpoint_dir: str, asset_id: str | None = None):
+    """Load a policy. Heavy imports (JAX/torch) happen only here.
+
+    Args:
+        config_name: Training config name (e.g. "pi0_x2robot").
+        checkpoint_dir: Path to checkpoint directory.
+        asset_id: Override the asset_id from config. If None, auto-detects
+                  from checkpoint_dir/assets/.
+    """
     from openpi.training import config as _config  # noqa: E402
     from openpi.policies import policy_config as _policy_config  # noqa: E402
+    from openpi.training import checkpoints as _checkpoints  # noqa: E402
+
     train_config = _config.get_config(config_name)
-    return _policy_config.create_trained_policy(train_config, checkpoint_dir)
+    data_config = train_config.data.create(train_config.assets_dirs, train_config.model)
+
+    # Auto-detect asset_id from checkpoint if not explicitly provided.
+    if asset_id is None:
+        asset_id = _find_asset_id(checkpoint_dir)
+    if asset_id is None:
+        asset_id = data_config.asset_id
+
+    norm_stats = _checkpoints.load_norm_stats(Path(checkpoint_dir) / "assets", asset_id)
+    logger.info("Loaded norm stats for asset_id=%s", asset_id)
+
+    return _policy_config.create_trained_policy(
+        train_config, checkpoint_dir, norm_stats=norm_stats,
+    )
 
 
 # ---------------------------------------------------------------------------
