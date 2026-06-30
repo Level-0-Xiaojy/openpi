@@ -89,11 +89,14 @@ def main():
 
     for ep_name in episodes:
         ep_dir = os.path.join(args.data_dir, ep_name)
-        json_files = [f for f in os.listdir(ep_dir)
-                      if f.endswith(".json") and not f.endswith("_annotated.json")]
-        if not json_files:
-            continue
-        json_path = os.path.join(ep_dir, json_files[0])
+        preferred = f"{ep_name}.json"
+        json_files = [f for f in os.listdir(ep_dir) if f.endswith(".json") and not f.endswith("_annotated.json")]
+        if preferred in json_files:
+            json_path = os.path.join(ep_dir, preferred)
+        else:
+            print(f"[{ep_name}] No preferred JSON file found, only find {json_files}, using first JSON file")
+            json_files = [f for f in json_files if f != "trim_manifest.json"]
+            json_path = os.path.join(ep_dir, sorted(json_files)[0])
 
         if args.inplace:
             if args.backup:

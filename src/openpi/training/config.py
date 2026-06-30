@@ -1660,33 +1660,36 @@ _CONFIGS = [
         data=LeRobotX2robotDataConfig(
             # pytorch 版本
             # repo_id="fold_towel_tele_0317_0318_0420",
-            repo_id="fold_towel_gqy_0317_fold_towel_gqy_0318_fold_towel_gqy_0420",
+            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0420",
 
             # jax 版本
+            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0420", # baseline sft
+            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0420,fold_towel_gqy_steam_0521", # baseline hg-dagger
+            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0420,fold_towel_gqy_steam_0522", # baseline hg-dagger
             # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0420,fold_towel_wyc_0428,fold_towel_wyc_0429,fold_towel_wyc_0508",
-            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0410,fold_towel_gqy_0420",
-            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0410,fold_towel_cjx_0415_ep323",
-            # repo_id="fold_towel_gqy_0317,fold_towel_gqy_0318,fold_towel_gqy_0420,fold_towel_cjx_0511,fold_towel_cjx_0512",
+            # repo_id="fold_towel_gqy_0420,fold_towel_cjx_0521_ep396",
+            repo_id="fold_towel_gqy_0420,fold_towel_lky_0604_ep352",
             mode="sm2sm",
             state_history_size=3,
             state_future_size=2,
             # only_right_obs=True,
             action_dim=28,
-            # random_drop_master=0.10,
-            # random_drop_history=0.50,
-            # random_drop_future=0.50,
-            # random_pos_offset=0.020,
+            random_drop_master=0.10,
+            random_drop_history=0.50,
+            random_drop_future=0.50,
+            random_pos_offset=0.020,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
         # weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/gaofeng/arm_ws/openpi-jet/checkpoints/fold_towel_gqy_0317_0318_sm2sm/fold_towel_gqy_0317_0318_sm2sm_h3f2_a20_dm10dh50df50po20/29999/params"),
+        # weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/guqiuyi/openpi/checkpoints/fold_towel_sm2sm/fold_towel_gqy_031703180420_pi0base_sm2sm/29999/params"),
         pytorch_weight_path="/mnt/public/models/pytorch_models/pi0_base_pytorch",
         batch_size=128,
-        # exp_name="checkout_chips_gqy_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
-        # exp_name="fold_towel_gqy_03170318_sm2sm_h3f2_a20_dm10dh50df50po20",
-        exp_name="fold_towel_gqy_0317031804100420_pi0base_sm2sm_h3f2_a20_dm10dh50df50po20",
-        # exp_name="fold_towel_gqy031703180410_cjx0415_pi0base_sm2sm_h3f2_a20_dm10dh50df50po20",
-        # exp_name="fold_towel_gqy031703180410_cjx0415_hyj0415_pys0415_pi0base_sm2sm_h3f2_a20_dm10dh50df50po20",
-        # exp_name="fold_towel_gqy031703180420_cjx05110512_pi0base_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="fold_towel_gqy_031703180420_pi0base_sm2sm", # baseline sft
+        # exp_name="fold_towel_gqy_0317031804200521_pi0base_sm2sm", # baseline hg-dagger
+        # exp_name="fold_towel_gqy_031703180420_pi0base_sm2sm_pytorch",
+        # exp_name="fold_towel_gqy_0317031804100420_pi0base_sm2sm_h3f2_a20_dm10dh50df50po20",
+        # exp_name="fold_towel_gqy0420_cjx0521_pi0base_sm2sm_h3f2_a20_dm10dh50df50po20",
+        exp_name="fold_towel_gqy0420_lky0604_pi0base_sm2sm",
     ),
 
     TrainConfig(
@@ -1711,11 +1714,84 @@ _CONFIGS = [
     ),
 
     TrainConfig(
+        name="bagging_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            # jax 版本
+            # repo_id="bagging_xpc_0602", # baseline sft
+            repo_id="bagging_xpc_0602,bagging_ny_0602", # baseline hg-dagger
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=28,
+            random_drop_master=0.10,
+            random_drop_history=0.50,
+            random_drop_future=0.50,
+            random_pos_offset=0.020,
+        ),
+        # weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/guqiuyi/openpi/checkpoints/bagging_sm2sm/bagging_xpc_0602_pi0base_sm2sm/29999/params"),
+        pytorch_weight_path="/mnt/public/models/pytorch_models/pi0_base_pytorch",
+        batch_size=128,
+        # exp_name="bagging_xpc_0602_pi0base_sm2sm", # baseline sft
+        exp_name="bagging_xpc_0602_ny_0602_pi0base_sm2sm", # baseline hg-dagger
+    ),
+
+    TrainConfig(
+        name="restock_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            # jax 版本
+            repo_id="restock_xpc_0602", # baseline sft
+            # repo_id="restock_xpc_0602", # baseline hg-dagger
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=28,
+            random_drop_master=0.10,
+            random_drop_history=0.50,
+            random_drop_future=0.50,
+            random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        pytorch_weight_path="/mnt/public/models/pytorch_models/pi0_base_pytorch",
+        batch_size=128,
+        exp_name="restock_xpc_0602_pi0base_sm2sm", # baseline sft
+        # exp_name="restock_xpc_0602_pi0base_sm2sm", # baseline hg-dagger
+    ),
+
+    TrainConfig(
         name="checkout_chips_sm2sm",
         model=pi0_config.Pi0Config(action_horizon=20),
         data=LeRobotX2robotDataConfig(
-            # repo_id="checkout_chips_gqy_0312", # Multiple datasets separated by comma
-            repo_id="checkout_chips_gqy_0312,checkout_chips_gqy_0313",
+            # repo_id="checkout_chips_gqy_0312,checkout_chips_gqy_0313", # BC
+            repo_id="checkout_chips_gqy_0312,checkout_chips_gqy_0313,checkout_chips_gqy_0612", # DAgger
+            # repo_id="checkout_chips_gqy_recap_sft,checkout_chips_gqy_recap_rollout", # RECAP
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=28,
+            random_drop_master=0.10,
+            random_drop_history=0.50,
+            random_drop_future=0.50,
+            random_pos_offset=0.020,
+        ),
+        # weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/gaofeng/arm_ws/openpi-jet/checkpoints/checkout_chips_sm2sm/checkout_chips_gqy_03120313_sm2sm_h3f2_a20_dm10dh50df50po20/29999/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=128,
+        exp_name="checkout_chips_gqy_031203130612_sm2sm", # DAgger
+        # exp_name="checkout_chips_gqy_recap_sm2sm", # RECAP
+    ),
+
+    TrainConfig(
+        name="restock_cola_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            repo_id="restock_cola_gqy_0606,restock_cola_gqy_0627", 
+            # repo_id="restock_cola_gqy_recap_sft,restock_cola_gqy_recap_rollout",
             mode="sm2sm",
             state_history_size=3,
             state_future_size=2,
@@ -1728,11 +1804,75 @@ _CONFIGS = [
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
         batch_size=128,
-        # exp_name="checkout_chips_gqy_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
-        # exp_name="checkout_chips_cyn_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
-        exp_name="checkout_chips_gqy_03120313_sm2sm_h3f2_a20_dm10dh50df50po20",
+        exp_name="restock_cola_gqy_06060627_sm2sm",
+        # exp_name="restock_cola_gqy_recap_sm2sm",
+    ),    
+    TrainConfig(
+        name="cap_cup_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            # repo_id="restock_cola_gqy_0606", 
+            repo_id="cap_cup_ygg_0610",
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=28,
+            random_drop_master=0.10,
+            random_drop_history=0.50,
+            random_drop_future=0.50,
+            random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=128,
+        exp_name="cap_cup_ygg_0610_sm2sm",
     ),
-
+    TrainConfig(
+        name="place_airpods_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            # repo_id="restock_cola_gqy_0606", 
+            repo_id="place_airpods_ygg_0616",
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=28,
+            random_drop_master=0.10,
+            random_drop_history=0.50,
+            random_drop_future=0.50,
+            random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=128,
+        exp_name="place_airpods_ygg_0616_sm2sm",
+    ),
+    TrainConfig(
+        name="open_giftbox_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotX2robotDataConfig(
+            # repo_id="open_giftbox_xpc_0623",
+            # repo_id="open_giftbox_xpc_0623,open_giftbox_xpc_0624",
+            # repo_id="open_giftbox_xpc_0626,open_giftbox_xpc_0627,open_giftbox_xpc_0628",
+            # repo_id="open_giftbox_xpc_0623,open_giftbox_xpc_0626,open_giftbox_xpc_0627,open_giftbox_xpc_0628",
+            repo_id="open_giftbox_gqy_0629",
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            # only_right_obs=True,
+            action_dim=28,
+            random_drop_master=0.10,
+            random_drop_history=0.50,
+            random_drop_future=0.50,
+            random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=128,
+        # exp_name="open_giftbox_xpc_0623_sm2sm",
+        # exp_name="open_giftbox_xpc_06230624_sm2sm",
+        # exp_name="open_giftbox_xpc_062606270628_sm2sm",
+        exp_name="open_giftbox_gqy_0629_sm2sm",
+    ),
     TrainConfig(
         name="checkout_cookie_sm2sm",
         model=pi0_config.Pi0Config(action_horizon=20),
@@ -1754,30 +1894,10 @@ _CONFIGS = [
     ),
 
     TrainConfig(
-        name="restock_cola_sm2sm",
-        model=pi0_config.Pi0Config(action_horizon=20),
-        data=LeRobotX2robotDataConfig(
-            repo_id="restock_cola_cyn_0313", 
-            mode="sm2sm",
-            state_history_size=3,
-            state_future_size=2,
-            # only_right_obs=True,
-            action_dim=28,
-            random_drop_master=0.10,
-            random_drop_history=0.50,
-            random_drop_future=0.50,
-            random_pos_offset=0.020,
-        ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
-        batch_size=128,
-        exp_name="restock_cola_cyn_0313_sm2sm_h3f2_a20_dm10dh50df50po20",
-    ),
-
-    TrainConfig(
         name="throw_sandbox_sm2sm",
         model=pi0_config.Pi0Config(action_horizon=20),
         data=LeRobotX2robotDataConfig(
-            repo_id="throw_sandbox_hy_0510",
+            repo_id="throw_sandbox_hy_0514",
             mode="sm2sm",
             state_history_size=3,
             state_future_size=2,
@@ -1790,14 +1910,14 @@ _CONFIGS = [
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
         batch_size=128,
-        exp_name="throw_sandbox_hy_0510_sm2sm_h3f2_a20_dm10dh10df10po10",
+        exp_name="throw_sandbox_hy_0514_sm2sm_h3f2_a20_dm10dh10df10po10",
     ),
 
     TrainConfig(
         name="throw_sandbox_sm2sm_freq",
         model=pi0_config.Pi0Config(action_horizon=20),
         data=LeRobotX2robotDataConfig(
-            repo_id="throw_sandbox_hy_0510_freq",
+            repo_id="throw_sandbox_hy_0514_freq",
             mode="sm2sm",
             state_history_size=3,
             state_future_size=2,
@@ -1810,29 +1930,30 @@ _CONFIGS = [
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
         batch_size=128,
-        exp_name="throw_sandbox_hy_0510_sm2sm_freq_h3f2_a20_dm10dh10df10po10",
+        exp_name="throw_sandbox_hy_0514_sm2sm_freq_h3f2_a20_dm10dh10df10po10",
     ),
 
     TrainConfig(
         name="clean_table_sm2sm",
         model=pi0_config.Pi0Config(action_horizon=20),
         data=LeRobotX2robotDataConfig(
-            repo_id="clean_table_gqy_0425",
+            # repo_id="clean_table_ygg_0618,clean_table_gqy_0626",
+            repo_id="clean_table_ygg06170618_steam_sft,clean_table_gqy062306250626_steam_rollout",
             mode="sm2sm",
             state_history_size=3,
             state_future_size=2,
             # only_right_obs=True,
             action_dim=28,
-            random_drop_master=0.10,
-            random_drop_history=0.50,
-            random_drop_future=0.50,
-            random_pos_offset=0.020,
+            # random_drop_master=0.10,
+            # random_drop_history=0.50,
+            # random_drop_future=0.50,
+            # random_pos_offset=0.020,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
         batch_size=128,
-        exp_name="clean_table_gqy_0425_sm2sm_h3f2_a20_dm10dh10df10po10",
+        exp_name="clean_table_ygg0618_gqy0626_sm2sm",
     ),
-        # Fold towel tele + CFG-SFT (RLInf): matches checkpoints/.../00_cfg_towel_2node_...yaml
+    # Fold towel tele + CFG-SFT (RLInf): matches checkpoints/.../00_cfg_towel_2node_...yaml
     # - actor.model.num_action_chunks / openpi.action_chunk: 20 (NOT checkpoint dir config.json;
     #   that file often reflects base π₀ export defaults 50/32 and is misleading.)
     # - Pi0Config(pi05=True, discrete_state_input=False); LeRobotX2robotDataConfig.action_dim=28.
