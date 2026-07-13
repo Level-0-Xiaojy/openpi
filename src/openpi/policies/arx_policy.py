@@ -7,6 +7,22 @@ from typing import ClassVar
 from openpi import transforms
 from openpi.models import model as _model
 
+# Used by `LeRobotX2robotDataConfig._individual_keys_repack` in training/config.py.
+ALL_COMPONENT_KEYS: tuple[str, ...] = (
+    "follow_left_position",
+    "follow_left_rotation",
+    "follow_left_gripper",
+    "follow_right_position",
+    "follow_right_rotation",
+    "follow_right_gripper",
+    "master_left_position",
+    "master_left_rotation",
+    "master_left_gripper",
+    "master_right_position",
+    "master_right_rotation",
+    "master_right_gripper",
+)
+
 
 def make_arx_example() -> dict:
     """Creates a random input example for the ARX policy."""

@@ -323,6 +323,7 @@ def create_torch_dataset(
                 _transforms.PromptFromLeRobotTask(dataset_meta.tasks)
             ]
             # Optionally append a metadata string (e.g. "[operator]:pys") to the prompt.
+            # By default prompt_meta_key is None, so the LeRobot task prompt is used exactly as stored.
             # Dropout is applied only for the training split.
             if getattr(data_config, "prompt_meta_key", None):
                 dropout_p = float(getattr(data_config, "prompt_meta_dropout_p", 0.0) or 0.0)
@@ -391,6 +392,7 @@ def create_torch_dataset(
             prompt_transforms: list[_transforms.DataTransformFn] = [
                 _transforms.PromptFromLeRobotTask(dataset_meta.tasks)
             ]
+            # By default prompt_meta_key is None, so the LeRobot task prompt is used exactly as stored.
             if getattr(data_config, "prompt_meta_key", None):
                 dropout_p = float(getattr(data_config, "prompt_meta_dropout_p", 0.0) or 0.0)
                 seed = int(getattr(data_config, "prompt_meta_dropout_seed", 0) or 0)

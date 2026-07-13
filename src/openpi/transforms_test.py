@@ -116,6 +116,16 @@ def test_extract_prompt_from_task():
 
     data = transform({"task_index": 1})
     assert data["prompt"] == "Hello, world!"
+    assert data["task"] == "Hello, world!"
 
     with pytest.raises(ValueError, match="task_index=2 not found in task mapping"):
         transform({"task_index": 2})
+
+
+def test_append_meta_to_prompt_updates_task_alias():
+    transform = _transforms.AppendMetaToPrompt(meta_key="meta")
+
+    data = transform({"prompt": "do task", "task": "do task", "meta": "[operator]:xpc"})
+
+    assert data["prompt"] == "do task [operator]:xpc"
+    assert data["task"] == "do task [operator]:xpc"

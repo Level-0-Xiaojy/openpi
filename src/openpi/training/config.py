@@ -90,7 +90,8 @@ class DataConfig:
     # If true, will use the LeRobot dataset task to define the prompt.
     prompt_from_task: bool = False
     # If set, append this string feature (e.g. "meta") to the end of the prompt.
-    prompt_meta_key: str | None = "meta"
+    # Defaults to None so LeRobot task prompts are used exactly as stored.
+    prompt_meta_key: str | None = None
     # Probability of dropping the meta string when forming the prompt during *training* (split="train").
     prompt_meta_dropout_p: float = 0.0
     # Seed used for deterministic per-sample meta dropout.
@@ -173,7 +174,8 @@ class DataConfigFactory(abc.ABC):
     # This is configured here (factory-level) so it can be overridden via CLI: `--data.prompt-from-task`.
     prompt_from_task: bool = False
     # If set, append this string feature (e.g. "meta") to the end of the prompt.
-    prompt_meta_key: str | None = "meta"
+    # Defaults to None so LeRobot task prompts are used exactly as stored.
+    prompt_meta_key: str | None = None
     # Probability of dropping the meta string when forming the prompt during *training* (split="train").
     prompt_meta_dropout_p: float = 0.0
     # Seed used for deterministic per-sample meta dropout.
@@ -1696,7 +1698,7 @@ _CONFIGS = [
         batch_size=128,
         # exp_name="checkout_chips_gqy_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
         # exp_name="checkout_chips_cyn_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
-        exp_name="restock_goods_beijing_chengdu_0428_sm2sm_h3f2_a20_dm10dh50df50po20",
+        exp_name="restock_goods_beijing_chengdu_0501_sm2sm_h3f2_a20_dm10dh50df50po20",
         # exp_name="fold_towel_gqy_03170318_sm2sm_h3f2_a20_dm10dh50df50po20",
     ),
     TrainConfig(
@@ -1770,6 +1772,26 @@ _CONFIGS = [
         # exp_name="checkout_chips_cyn_0312_sm2sm_h3f2_a20_dm10dh50df50po20",
         exp_name="restock_cola_sm2sm_h3f2_a20_dm10dh50df50po20",
         # exp_name="fold_towel_gqy_03170318_sm2sm_h3f2_a20_dm10dh50df50po20",
+    ),
+    TrainConfig(
+        name="restock_cola_0712_sm2sm",
+        model=pi0_config.Pi0Config(action_horizon=20, max_token_len=512),
+        data=LeRobotX2robotDataConfig(
+            repo_id="restock_ModularAgent_1_cola_gxd_0708_0710_lerobot",
+            mode="sm2sm",
+            state_history_size=3,
+            state_future_size=2,
+            action_dim=28,
+            prompt_from_task=True,
+            # random_drop_master=0.10,
+            # random_drop_history=0.50,
+            # random_drop_future=0.50,
+            # random_pos_offset=0.020,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/public/datasets/pretrained-checkpoints/openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=128,
+        num_workers=16,
+        exp_name="restock_cola_0708_basket_prompt_sm2sm_h3f2_a20_t900",
     ),
     TrainConfig(
         name="restock_chips_sm2sm",

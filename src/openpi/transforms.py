@@ -321,7 +321,10 @@ class PromptFromLeRobotTask(DataTransformFn):
         if (prompt := self.tasks.get(task_index)) is None:
             raise ValueError(f"{task_index=} not found in task mapping: {self.tasks}")
 
-        return {**data, "prompt": prompt}
+        # Some legacy X2Robot repack configs still read the language field from
+        # `task`. Keep `prompt` as the canonical key while providing `task` as a
+        # compatibility alias after resolving LeRobot's task_index indirection.
+        return {**data, "prompt": prompt, "task": prompt}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -362,7 +365,7 @@ class AppendMetaToPrompt(DataTransformFn):
             meta_val = meta_val.item()
         meta_val = str(meta_val)
         if meta_val == "":
-            return {**data, "prompt": prompt}
+            return {**data, "prompt": prompt, "task": prompt}
 
         # Decide dropout (if enabled).
         if self.dropout_p > 0.0:
@@ -383,13 +386,14 @@ class AppendMetaToPrompt(DataTransformFn):
                     fr = int(np.asarray(fr).item())
             u = self._deterministic_uniform01(episode_index=int(ep), frame_index=int(fr))
             if u < float(self.dropout_p):
-                return {**data, "prompt": prompt}
+                return {**data, "prompt": prompt, "task": prompt}
 
         # Append meta to the end of prompt.
         suffix = meta_val
         if not suffix.startswith(" "):
             suffix = " " + suffix
-        return {**data, "prompt": prompt + suffix}
+        prompt = prompt + suffix
+        return {**data, "prompt": prompt, "task": prompt}
 
 
 @dataclasses.dataclass(frozen=True)
