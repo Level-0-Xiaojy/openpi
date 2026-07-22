@@ -3,6 +3,7 @@ import logging
 import os
 import struct
 import socket
+import sys
 import time
 import types
 from collections import deque
@@ -22,28 +23,68 @@ from openpi.policies import policy as _policy
 from openpi.policies import policy_config as _policy_config
 from openpi.training import config as _config
 from openpi.training import checkpoints as _checkpoints
-# uv run scripts/x2robot_infer_seq_lzh.py --policy-config fold_towel_sm2sm --policy-mode sm2sm --policy-dir /home/user/qiuyi_projects/openpi/checkpoints/fold_towel_ckpt/fold_towel_lzh_cfg_031703180410_hyj0415_pys0415_cjx0415_dagger05130514_20260516 --prompt "Fold the towel." --cfg-enable --cfg-guidance-scale 4.0 --cfg-guidance-type positive --profile-infer
-# uv run scripts/x2robot_infer_seq_lzh.py --policy-config checkout_chips_sm2sm --policy-mode sm2sm --policy-dir /home/user/qiuyi_projects/openpi/checkpoints/checkout_chips_ckpt/checkout_chips_cfg_03120313_0605dagger_sm2sm --prompt "Scan the chips at the checkout." --cfg-enable --cfg-guidance-scale 2.5 --cfg-guidance-type positive --profile-infer
-# CFG (Classifier-Free Guidance) usage examples — only for ckpts trained with
-# rlinf cfg-sft (Advantage-tagged prompt routing). Default is OFF; without
-# --cfg-enable behavior is identical to before.
-#   # Pure conditional (equivalent to manually appending the suffix):
-#   ... --prompt "Fold the towel." --cfg-enable --cfg-guidance-scale 1.0 --cfg-guidance-type positive
-#   # Standard CFG amplification:
-#   ... --prompt "Fold the towel." --cfg-enable --cfg-guidance-scale 2.0 --cfg-guidance-type positive
-#   # Pure unconditional (base prompt, no Advantage tag):
-#   ... --prompt "Fold the towel." --cfg-enable --cfg-guidance-scale 0.0 --cfg-guidance-type no_guide
-#   # Negative guidance (push away from negative-advantage manifold):
-#   ... --prompt "Fold the towel." --cfg-enable --cfg-guidance-scale 2.0 --cfg-guidance-type negative
 
-# uv run scripts/x2robot_infer_seq_lzh.py --policy-config open_giftbox_sm2sm --policy-mode sm2sm --policy-dir /home/user/qiuyi_projects/openpi/checkpoints/open_giftbox/open_giftbox_steam_dagger1/global_step_30000 --prompt "Fold the towel." --cfg-enable --cfg-guidance-scale 2.5 --cfg-guidance-type positive --profile-infer
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "velocity_guider"))
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 合并脚本：一个脚本同时支持
+#   1. BC 模型推理（等价于 x2robot_infer_seq.py，含 Velocity Guider / actions_factor）
+#   2. CFGRL 模型推理（等价于 x2robot_infer_seq_lzh.py，含 Classifier-Free Guidance）
+#   3. rollout 过程中人工接管再切回（等价于 x2robot_infer_seq_zyx.py 的断线重连机制）
+#
+# 用法示例：
+#   # BC 模型（断线可重连 = 人工接管后可切回 rollout）
+#   uv run scripts/x2robot_infer_seq_qiuyi.py \
+#       --policy-config open_giftbox_sm2sm \
+#       --policy-dir .../open_giftbox_xpc_0623062606270628_sm2sm/29999
+#
+#   # BC 模型 + Velocity Guider
+#   uv run scripts/x2robot_infer_seq_qiuyi.py \
+#       --policy-config open_giftbox_sm2sm --policy-dir .../29999 \
+#       --guider-checkpoint .../best.pt
+#
+#   # CFGRL 模型
+#   uv run scripts/x2robot_infer_seq_qiuyi.py \
+#       --policy-config restock_cola_sm2sm --policy-mode sm2sm \
+#       --policy-dir .../restock_cola_steam_dagger/global_step_30000 \
+#       --prompt "Restock the goods onto the shelf." \
+#       --cfg-enable --cfg-guidance-scale 2.5 --cfg-guidance-type positive --profile-infer
+#
+# 人工接管：机器人客户端断开连接即可切到人工接管；重新连接即切回 rollout，
+# 服务端在每次新连接时重置 master_queue，不会携带接管前的旧动作历史。
+# ─────────────────────────────────────────────────────────────────────────────
+
+# bagging_4sku_sm2sm 可选 assets（与 config.py 中注释标签一致）
+AssetPreset = Literal[
+    "1121",
+    "v0520",
+    "v0525",
+    "v0601",
+    "v0602",
+    "v0604_pi05",  # bagging_4sku_zyx_xpc_pi05_sm2sm_h3f2_a20_dm10dh50df50po20
+    "v0604_pi0",   # bagging_4sku_zyx_ny_xpc_sm2sm_h3f2_a20_dm10dh50df50po20
+    "v0630",
+]
+BAGGING_4SKU_ASSET_PRESETS: dict[str, str] = {
+    "1121": "bagging_4sku_sm2sm_multi_bd90ba7812",
+    "v0520": "bagging_4sku_sm2sm_multi_3617113b35",
+    "v0525": "bagging_4sku_sm2sm_multi_b968c1739d",
+    "v0601": "bagging_4sku_sm2sm_multi_1df01fc672",
+    "v0602": "bagging_4sku_sm2sm_multi_1df01fc672",
+    "v0604_pi05": "bagging_4sku_sm2sm_multi_067a46021d",
+    "v0604_pi0": "bagging_4sku_sm2sm_multi_1df01fc672",
+    "v0630": "bagging_4sku_sm2sm_multi_0602",
+}
+
+
 @dataclasses.dataclass
 class Args:
     """Arguments for the serve_policy script."""
+
     policy_config: str = "throw_sm2m"
     policy_dir: str = "checkpoints/throw_sm2m/throw_0113_sm2m_h5f3/29999"
     policy_mode: Literal["s2s", "s2m", "sm2m", "sm2sm"] | None = None
-    host: str = "0.0.0.0"
+    host: str = "192.168.120.153"
     port: int = 57770
     log_replay: bool = False
     state_history_size: int = None
@@ -52,14 +93,26 @@ class Args:
     move_steps: int = 15
     only_right_arm: bool = False
     latency_step: int = None
-    # latency_step: int = 3
-    # Natural-language task instruction for pi0 (match training style / language). Empty keeps previous behavior.
+    # Natural-language task instruction for pi0 (match training style / language).
+    # Empty keeps previous behavior.
     prompt: str = ""
+    # 覆盖 config.py 中 assets；不传则使用 config 里当前生效的 asset_id
+    asset_preset: AssetPreset | None = None
+
+    # ─── Velocity Guider (BC path) ───────────────────────────────────────
+    guider_checkpoint: str | None = None
+    """Path to Velocity Guider best.pt. If None, v_mode prediction is disabled
+    and actions_factor is always 3."""
+
+    # ─── Profiling ───────────────────────────────────────────────────────
     profile_infer: bool = False
     profile_warmup: int = 3
     profile_report_every: int = 1
-    # If set, dump each step's obs (images/state/prompt) and predicted actions to this dir for offline visualization/replay.
+
+    # If set, dump each step's obs (images/state/prompt) and predicted actions to
+    # this dir for offline visualization/replay.
     save_data_dir: str | None = None
+
     # If >0, smooth the chunk-boundary discontinuity by blending the first W
     # newly-predicted actions of each chunk with a linear extrapolation of the
     # previous chunk's tail velocity. W=0 disables. Recommended: 3.
@@ -88,9 +141,38 @@ class Args:
     # Override denoise step count; None → reuse policy._sample_kwargs (typically 10).
     cfg_num_steps: int | None = None
 
+
 _CFG_DEBUG_BUDGET = int(os.environ.get("CFG_DEBUG_BUDGET", "1"))
 
 
+# ═════════════════════════════════════════════════════════════════════════════
+# Velocity Guider (BC path)
+# ═════════════════════════════════════════════════════════════════════════════
+def _extract_obs_feat_from_policy(policy: _policy.Policy) -> np.ndarray | None:
+    """Extract obs_feat from pi0's cached image embeddings after policy.infer().
+
+    The PI0Pytorch model caches per-camera image embeddings in
+    ``_cached_image_embeds`` during ``embed_prefix``.  We mean-pool the
+    patch dimension and concatenate across cameras to get ``[1, 3*width]``.
+
+    Returns None if the model is not PyTorch or the cache is empty.
+    """
+    if not policy._is_pytorch_model:
+        return None
+    model = policy._model
+    cache = getattr(model, "_cached_image_embeds", None)
+    if not cache:
+        return None
+    pooled = []
+    for emb in cache:
+        pooled.append(emb.mean(dim=1).to(torch.float32))
+    obs_feat = torch.cat(pooled, dim=-1)
+    return obs_feat.cpu().numpy().astype(np.float32)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CFG (Classifier-Free Guidance) — CFGRL path
+# ═════════════════════════════════════════════════════════════════════════════
 @torch.no_grad()
 def _cfg_sample_actions_method(
     self,
@@ -380,7 +462,6 @@ def _cfg_infer(
     )
 
     compiled_cfg = getattr(policy._model, "sample_actions_cfg", None)
-    print("compiled_cfg", compiled_cfg)
     if compiled_cfg is not None:
         # Fast path: compiled method bound by main(); guidance_scale as tensor
         # to avoid per-value recompiles.
@@ -415,6 +496,9 @@ def _cfg_infer(
     return outputs
 
 
+# ═════════════════════════════════════════════════════════════════════════════
+# Helpers
+# ═════════════════════════════════════════════════════════════════════════════
 def _infer_profile_log(times_ms: list, prefix: str = "") -> None:
     if not times_ms:
         return
@@ -425,90 +509,62 @@ def _infer_profile_log(times_ms: list, prefix: str = "") -> None:
         float(np.percentile(a, 50)), float(np.percentile(a, 99)),
     )
 
-def _load_norm_stats(policy_config: str, policy_dir: str) -> dict | None:
-    train_config = _config.get_config(policy_config)
-    data_config = train_config.data.create(train_config.assets_dirs, train_config.model)
+
+def _resolve_asset_id(preset: str | None) -> str | None:
+    if preset is None:
+        return None
+    key = preset.lower()
+    if key not in BAGGING_4SKU_ASSET_PRESETS:
+        choices = ", ".join(sorted(BAGGING_4SKU_ASSET_PRESETS))
+        raise ValueError(f"Unknown asset_preset '{preset}'. Choose from: {choices}")
+    return BAGGING_4SKU_ASSET_PRESETS[key]
+
+
+def _cfg_with_asset_id(cfg: _config.TrainConfig, asset_id: str | None) -> _config.TrainConfig:
+    if asset_id is None:
+        return cfg
+    return dataclasses.replace(
+        cfg,
+        data=dataclasses.replace(
+            cfg.data,
+            assets=_config.AssetsConfig(asset_id=asset_id),
+        ),
+    )
+
+
+def _load_norm_stats_from_cfg(cfg: _config.TrainConfig, policy_dir: str) -> dict | None:
+    data_config = cfg.data.create(cfg.assets_dirs, cfg.model)
     return _checkpoints.load_norm_stats(Path(policy_dir) / "assets", data_config.asset_id)
+
 
 def recv_all(sock, count):
     buf = b''
     while count:
         newbuf = sock.recv(count)
-        if not newbuf: return None
+        if not newbuf:
+            return None
         buf += newbuf
         count -= len(newbuf)
     return buf
 
+
+def read_size(conn) -> int:
+    """Read a 4-byte little-endian length header, raising ConnectionError on EOF."""
+    header = recv_all(conn, 4)
+    if header is None:
+        raise ConnectionError("client disconnected")
+    return struct.unpack('<L', header)[0]
+
+
 def read_img(conn):
-    image_size = struct.unpack('<L', conn.recv(4))[0]
+    image_size = read_size(conn)
     image = recv_all(conn, image_size)
+    if image is None:
+        raise ConnectionError("client disconnected during image payload")
     nparr = np.frombuffer(image, np.uint8)
     image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     return image
-
-# start edit by qyn 2026-03-28
-def save_first_frame_data_old_method(images, observation):
-    """保存第一帧图像数据到txt文件（旧方法）"""
-    print(f"[旧方法] 正在保存第一帧数据...")
-    print(f"[旧方法] 图像数量: {len(images)}")
-    print(f"[旧方法] Observation keys: {list(observation.keys())}")
-    
-    import time
-    log_dir = Path("/home/user/xyf_projects/inference_logs")
-    log_dir.mkdir(exist_ok=True)
-    timestamp = int(time.time())
-    save_path = log_dir / f"first_frame_old_method_{timestamp}.txt"
-    
-    print(f"[旧方法] 保存路径: {save_path}")
-    
-    try:
-        with open(save_path, 'w', encoding='utf-8') as f:
-            f.write("="*60 + "\n")
-            f.write("旧方法 - 第一帧数据\n")
-            f.write("="*60 + "\n\n")
-            
-            # 保存observation数据
-            f.write("--- Observation 数据 ---\n")
-            for key, value in observation.items():
-                f.write(f"{key}: {value}\n")
-            f.write("\n")
-            
-            # 保存图像数据
-            f.write("--- 图像数据 ---\n")
-            f.write(f"图像数量: {len(images)}\n\n")
-            
-            image_names = ['left_wrist_view', 'face_view', 'right_wrist_view']
-            for i, (name, img) in enumerate(zip(image_names, images)):
-                if img is not None:
-                    img_arr = np.asarray(img)
-                    f.write(f"{name} (图像 {i}):\n")
-                    f.write(f"  shape: {img_arr.shape}\n")
-                    f.write(f"  dtype: {img_arr.dtype}\n")
-                    f.write(f"  min: {np.min(img_arr):.4f}\n")
-                    f.write(f"  max: {np.max(img_arr):.4f}\n")
-                    f.write(f"  mean: {np.mean(img_arr):.4f}\n")
-                    # 保存整张图像的像素数据
-                    f.write(f"  所有像素值 (flatten):\n")
-                    # 将像素数据展平并保存
-                    flat_pixels = img_arr.flatten()
-                    # 每100个像素换一行，方便阅读
-                    for j in range(0, len(flat_pixels), 100):
-                        end_idx = min(j + 100, len(flat_pixels))
-                        f.write(f"    {flat_pixels[j:end_idx]}\n")
-                    f.write("\n")
-                else:
-                    f.write(f"{name} (图像 {i}): None\n\n")
-        
-        print(f"[旧方法] ✅ 第一帧数据已成功保存到: {save_path}")
-        return True
-        
-    except Exception as e:
-        print(f"[旧方法] ❌ 保存第一帧数据失败: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
-# end edit
 
 
 def _blend_chunk_transition(
@@ -584,10 +640,17 @@ def main(args: Args) -> None:
                 logging.info(f"Auto-detected policy_mode from path: {args.policy_mode}")
                 break
         if args.policy_mode is None:
-            raise ValueError(f"Could not detect policy_mode from path: {args.policy_dir}. Please specify --policy-mode")
-    
+            raise ValueError(
+                f"Could not detect policy_mode from path: {args.policy_dir}. "
+                f"Please specify --policy-mode"
+            )
+
     # Load config params if not specified
     cfg = _config.get_config(args.policy_config)
+    asset_id = _resolve_asset_id(args.asset_preset)
+    cfg = _cfg_with_asset_id(cfg, asset_id)
+    if asset_id is not None:
+        logging.info("asset_preset=%s -> asset_id=%s", args.asset_preset, asset_id)
     if args.state_history_size is None:
         args.state_history_size = getattr(cfg.data, 'state_history_size', 0)
         logging.info(f"Using state_history_size from config: {args.state_history_size}")
@@ -600,13 +663,20 @@ def main(args: Args) -> None:
     if args.latency_step is None:
         args.latency_step = args.state_future_size
         logging.info(f"Using latency_step equal to state_future_size: {args.latency_step}")
-    
+
     # Load policy
     logging.info(f"Loading policy from {args.policy_dir}")
     policy = _policy_config.create_trained_policy(
         cfg, args.policy_dir, default_prompt=(args.prompt or None)
     )
-    norm_stats = _load_norm_stats(args.policy_config, args.policy_dir)
+    norm_stats = _load_norm_stats_from_cfg(cfg, args.policy_dir)
+
+    # ── Load Velocity Guider (optional, BC path) ─────────────────────────
+    guider = None
+    if args.guider_checkpoint:
+        from infer import VelocityGuiderInfer
+        guider = VelocityGuiderInfer(args.guider_checkpoint, device="cuda:0")
+        logging.info(f"Loaded Velocity Guider from {args.guider_checkpoint}")
 
     # ── Bind a compiled CFG sampler onto policy._model (fast path) ────────
     # Original sample_actions is wrapped with torch.compile(mode="max-autotune")
@@ -635,165 +705,195 @@ def main(args: Args) -> None:
 
     state_seq_len = args.state_history_size + 1 + args.state_future_size
     latency_len = args.state_history_size + 1 + args.latency_step
-    master_queue = deque(maxlen=100)  # queue_len * 14
-    # start edit by qyn 2026-03-28
-    first_frame_saved = False
-    # end edit
+
     save_dir: Path | None = None
     if args.save_data_dir:
         save_dir = Path(args.save_data_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
         logging.info(f"Saving per-frame obs/action data to {save_dir}")
     save_frame_idx = 0
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setblocking(True) #设置通信是阻塞式
+    sock.setblocking(True)  # 设置通信是阻塞式
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    ip = '192.168.120.153' #zhengzailushang wifi
-    port = 57770
+    ip = args.host
+    port = args.port
     sock.bind((ip, port))
     sock.listen(1)
     print(f"Server is listening on {ip}:{port}")
-
-    conn, addr = sock.accept()
-    print(f"Connection from {addr}")
 
     infer_times_ms: list = []
     infer_count = 0
 
     try:
-      while True:
-        data_size = struct.unpack('<L', conn.recv(4))[0]
-        data = recv_all(conn, data_size)
-        action_data = json.loads(data.decode('utf8'))
+        # ── Outer accept loop: survives client disconnect (human takeover)
+        #    and reconnect (resume rollout). master_queue is reset per
+        #    connection so takeover-era history is not carried over. ──────
+        while True:
+            conn, addr = sock.accept()
+            print(f"Connection from {addr}")
+            master_queue = deque(maxlen=100)  # queue_len * 14, reset on (re)connect
+            try:
+                while True:
+                    data_size = read_size(conn)
+                    data = recv_all(conn, data_size)
+                    if data is None:
+                        raise ConnectionError("client disconnected during payload")
+                    action_data = json.loads(data.decode('utf8'))
 
-        left_agent_data = action_data['follow1_pos'] # (state_history_size + 1, 7)
-        right_agent_data = action_data['follow2_pos'] # (state_history_size + 1, 7)
-      
-        image1 = read_img(conn)  # left
-        image2 = read_img(conn)  # front
-        image3 = read_img(conn)  # right
+                    left_agent_data = action_data['follow1_pos']  # (state_history_size + 1, 7)
+                    right_agent_data = action_data['follow2_pos']  # (state_history_size + 1, 7)
 
-        # start edit by qyn 2026-03-28
-        # 保存第一帧图像数据
-        if not first_frame_saved:
-            print(f"[旧方法] 准备保存第一帧数据...")
-            observation = {
-                'follow1_pos': left_agent_data,
-                'follow2_pos': right_agent_data,
-            }
-            first_frame_saved = save_first_frame_data_old_method(
-                [image1, image2, image3], 
-                observation
-            )
-        # end edit
-        
-        h, w, c = np.array(image1).shape
-        camera_front = np.array(image2).reshape(h, w, c)
-        camera_left = np.array(image1).reshape(h, w, c)
-        camera_right = np.array(image3).reshape(h, w, c)
-        
-        state = np.zeros((state_seq_len, 32), dtype=np.float32)
-        slave_state = np.concatenate([left_agent_data, right_agent_data], axis=1) # (state_history_size + 1, 14)
-        slave_state = np.concatenate([slave_state] + [slave_state[-1:]] * args.state_future_size)
+                    image1 = read_img(conn)  # left
+                    image2 = read_img(conn)  # front
+                    image3 = read_img(conn)  # right
 
-        if not master_queue:
-            master_queue.extend([slave_state[-1]] * max(state_seq_len, latency_len))
-        
-        master_list = list(master_queue)[-latency_len:]
-        if args.latency_step < args.state_future_size:  # inpainting mode
-            master_list = master_list + [master_list[-1]] * (args.state_future_size - args.latency_step)
-            state[args.latency_step - args.state_future_size:, -1] = 1.0
-        else:  # naive async
-            master_list = master_list[:state_seq_len]
-        master_state = np.array(master_list)
+                    h, w, c = np.array(image1).shape
+                    camera_front = np.array(image2).reshape(h, w, c)
+                    camera_left = np.array(image1).reshape(h, w, c)
+                    camera_right = np.array(image3).reshape(h, w, c)
 
-        if args.policy_mode in ["s2s", "s2m"]:
-            state[:, :14] = slave_state
-        else:
-            state[:, :28] = np.concatenate([slave_state, master_state], axis=1)
+                    state = np.zeros((state_seq_len, 32), dtype=np.float32)
+                    slave_state = np.concatenate([left_agent_data, right_agent_data], axis=1)  # (h+1, 14)
+                    slave_state = np.concatenate(
+                        [slave_state] + [slave_state[-1:]] * args.state_future_size
+                    )
 
-        if args.only_right_arm:
-            mean = np.asarray(norm_stats["state"].mean)
-            state[:, 0:7] = mean[..., 0:7]
-            if args.policy_mode in ["sm2m", "sm2sm"]:
-                state[:, 14:21] = mean[..., 14:21]
-        
-        obs = {
-            'images': {
-                'left_wrist_view': camera_left,
-                'face_view': camera_front,
-                'right_wrist_view': camera_right,
-            },
-            'prompt': args.prompt,
-            'state': state,
-        }
-        if args.profile_infer:
-            _t0 = time.perf_counter()
-        if args.cfg_enable:
-            print("receive obs, begin cfg infer")
-            action_pred = _cfg_infer(
-                policy, obs,
-                pos_suffix=args.cfg_pos_suffix,
-                neg_suffix=args.cfg_neg_suffix,
-                guidance_scale=args.cfg_guidance_scale,
-                guidance_type=args.cfg_guidance_type,
-                num_steps=args.cfg_num_steps,
-            )
-        else:
-            action_pred = policy.infer(obs)
-        if args.profile_infer:
-            infer_count += 1
-            _dt_ms = (time.perf_counter() - _t0) * 1000
-            if infer_count > args.profile_warmup:
-                infer_times_ms.append(_dt_ms)
-                if len(infer_times_ms) % args.profile_report_every == 0:
-                    _infer_profile_log(infer_times_ms)
-        action_pred = action_pred['actions']
-        action_pred_full = np.asarray(action_pred).copy()
-        if args.policy_mode == "sm2sm":
-            _, master_action = action_pred[:, :14], action_pred[:, 14:28]
-            action_pred = master_action
+                    if not master_queue:
+                        master_queue.extend([slave_state[-1]] * max(state_seq_len, latency_len))
 
-        action_pred = action_pred[args.latency_step:]
-        action_pred = action_pred[:args.move_steps, ...]  # (move_steps, 14)
-        action_pred = np.concatenate([[master_queue[-1]], action_pred])
-        if args.blend_steps > 0:
-            action_pred = _blend_chunk_transition(
-                action_pred, master_queue, args.blend_steps,
-                skip_dims=args.blend_skip_dims,
-            )
-        for action in action_pred[1:]:
-            master_queue.append(action)
+                    master_list = list(master_queue)[-latency_len:]
+                    if args.latency_step < args.state_future_size:  # inpainting mode
+                        master_list = master_list + [master_list[-1]] * (
+                            args.state_future_size - args.latency_step
+                        )
+                        state[args.latency_step - args.state_future_size:, -1] = 1.0
+                    else:  # naive async
+                        master_list = master_list[:state_seq_len]
+                    master_state = np.array(master_list)
 
-        if save_dir is not None:
-            _save_frame_data(
-                save_dir,
-                save_frame_idx,
-                images={
-                    "left_wrist_view": camera_left,
-                    "face_view": camera_front,
-                    "right_wrist_view": camera_right,
-                },
-                state=state,
-                prompt=args.prompt,
-                action_pred_full=action_pred_full,
-                action_sent=action_pred,
-            )
-            save_frame_idx += 1
-        print("send action, begin send data")
-        follow1_pos = action_pred[:, :7].tolist()
-        follow2_pos = action_pred[:, 7:].tolist()
-        
-        data_dir ={
-            "follow1_pos":follow1_pos,
-            "follow2_pos":follow2_pos, 
-        }
-        data_str = json.dumps(data_dir)
-        data_bytes = data_str.encode('utf-8') 
-        conn.sendall(struct.pack('<L', len(data_bytes)))
-        conn.sendall(data_bytes)
-        print("send data done")
+                    if args.policy_mode in ["s2s", "s2m"]:
+                        state[:, :14] = slave_state
+                    else:
+                        state[:, :28] = np.concatenate([slave_state, master_state], axis=1)
 
+                    if args.only_right_arm:
+                        mean = np.asarray(norm_stats["state"].mean)
+                        state[:, 0:7] = mean[..., 0:7]
+                        if args.policy_mode in ["sm2m", "sm2sm"]:
+                            state[:, 14:21] = mean[..., 14:21]
+
+                    obs = {
+                        'images': {
+                            'left_wrist_view': camera_left,
+                            'face_view': camera_front,
+                            'right_wrist_view': camera_right,
+                        },
+                        'prompt': args.prompt,
+                        'state': state,
+                    }
+
+                    # ── Inference: CFG two-pass (CFGRL) or single-pass (BC) ──
+                    if args.profile_infer:
+                        _t0 = time.perf_counter()
+                    if args.cfg_enable:
+                        action_pred = _cfg_infer(
+                            policy, obs,
+                            pos_suffix=args.cfg_pos_suffix,
+                            neg_suffix=args.cfg_neg_suffix,
+                            guidance_scale=args.cfg_guidance_scale,
+                            guidance_type=args.cfg_guidance_type,
+                            num_steps=args.cfg_num_steps,
+                        )
+                    else:
+                        action_pred = policy.infer(obs)
+                    if args.profile_infer:
+                        infer_count += 1
+                        _dt_ms = (time.perf_counter() - _t0) * 1000
+                        if infer_count > args.profile_warmup:
+                            infer_times_ms.append(_dt_ms)
+                            if len(infer_times_ms) % args.profile_report_every == 0:
+                                _infer_profile_log(infer_times_ms)
+
+                    action_pred = action_pred['actions']
+                    action_pred_full = np.asarray(action_pred).copy()
+                    if args.policy_mode == "sm2sm":
+                        _, master_action = action_pred[:, :14], action_pred[:, 14:28]
+                        action_pred = master_action
+
+                    # ── Velocity Guider (BC path): predict v_mode / actions_factor
+                    #    on the full chunk BEFORE latency truncation. ──────
+                    actions_factor = 3
+                    if guider is not None:
+                        obs_feat = _extract_obs_feat_from_policy(policy)
+                        if obs_feat is not None:
+                            chunk_len = min(20, action_pred.shape[0])
+                            chunk = action_pred[:chunk_len]
+                            if chunk.shape[0] < 20:
+                                pad = np.tile(chunk[-1:], (20 - chunk.shape[0], 1))
+                                chunk = np.concatenate([chunk, pad], axis=0)
+                            result = guider.predict(obs_feat, chunk[np.newaxis])
+                            v_mode = int(result["v_mode"][0])
+                            actions_factor = 3 if v_mode == 3 else 2
+                            # temp modify
+                            if result["prob"][0, 1] > 0.02 or result["prob"][0, 2] > 0.02:
+                                actions_factor = 2
+                            logging.info(
+                                "v_mode=%d  actions_factor=%d  probs=[%.2f, %.2f, %.2f]",
+                                v_mode, actions_factor,
+                                result["prob"][0, 0], result["prob"][0, 1], result["prob"][0, 2],
+                            )
+
+                    action_pred = action_pred[args.latency_step:]
+                    action_pred = action_pred[:args.move_steps, ...]  # (move_steps, 14)
+                    action_pred = np.concatenate([[master_queue[-1]], action_pred])
+                    if args.blend_steps > 0:
+                        action_pred = _blend_chunk_transition(
+                            action_pred, master_queue, args.blend_steps,
+                            skip_dims=args.blend_skip_dims,
+                        )
+                    for action in action_pred[1:]:
+                        master_queue.append(action)
+
+                    if save_dir is not None:
+                        _save_frame_data(
+                            save_dir,
+                            save_frame_idx,
+                            images={
+                                "left_wrist_view": camera_left,
+                                "face_view": camera_front,
+                                "right_wrist_view": camera_right,
+                            },
+                            state=state,
+                            prompt=args.prompt,
+                            action_pred_full=action_pred_full,
+                            action_sent=action_pred,
+                        )
+                        save_frame_idx += 1
+
+                    follow1_pos = action_pred[:, :7].tolist()
+                    follow2_pos = action_pred[:, 7:].tolist()
+
+                    data_dir = {
+                        "follow1_pos": follow1_pos,
+                        "follow2_pos": follow2_pos,
+                    }
+                    # Only include actions_factor when the Velocity Guider is
+                    # active (BC path). CFG/BC-without-guider clients that don't
+                    # expect this field thus receive the original response shape.
+                    if guider is not None:
+                        data_dir["actions_factor"] = actions_factor
+                    data_str = json.dumps(data_dir)
+                    data_bytes = data_str.encode('utf-8')
+                    conn.sendall(struct.pack('<L', len(data_bytes)))
+                    conn.sendall(data_bytes)
+            except (ConnectionError, ConnectionResetError, BrokenPipeError) as exc:
+                logging.info(f"Client disconnected: {exc}. Waiting for next connection.")
+            finally:
+                try:
+                    conn.close()
+                except OSError:
+                    pass
     except KeyboardInterrupt:
         pass
     finally:
