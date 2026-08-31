@@ -85,6 +85,25 @@ def test_robodojo_arx_x5_train_config_is_registered() -> None:
     assert isinstance(train_config.data, config.LeRobotRoboDojoArxX5DataConfig)
 
 
+def test_stack_bowls_seed1_config_uses_official_and_seed1_repos(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        config,
+        "ModelTransformFactory",
+        lambda default_prompt=None: lambda model_config: transforms.Group(),
+    )
+    train_config = config.get_config("pi05_robodojo_stack_bowls_arx_x5_joint")
+    repo_ids = [repo_id.strip() for repo_id in train_config.data.repo_id.split(",")]
+
+    assert train_config.exp_name == "official100_dagger_s1"
+    assert repo_ids == [
+        "robodojo-stack_bowls-official-100ep",
+        "robodojo-stack_bowls-dagger-20260830-seed1",
+    ]
+
+    data_config = train_config.data.create(tmp_path, train_config.model)
+    assert data_config.asset_id == "_".join(repo_ids)
+
+
 def test_stack_bowls_official_and_dagger_config_uses_both_repos(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         config,

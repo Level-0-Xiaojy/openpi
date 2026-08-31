@@ -781,6 +781,18 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader(tyro.MISSING),
     ),
     TrainConfig(
+        name="pi05_robodojo_stack_bowls_arx_x5_joint",
+        exp_name="official100_dagger_s1",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=50),
+        data=LeRobotRoboDojoArxX5DataConfig(
+            repo_id=(
+                "robodojo-stack_bowls-official-100ep,"
+                "robodojo-stack_bowls-dagger-20260830-seed1"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(tyro.MISSING),
+    ),
+    TrainConfig(
         name="pi05_robodojo_stack_bowls_official100_dagger56",
         model=pi0_config.Pi0Config(pi05=True, action_horizon=50),
         data=LeRobotRoboDojoArxX5DataConfig(
