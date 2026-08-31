@@ -21,6 +21,7 @@ import openpi.policies.arx_policy as arx_policy
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
+import openpi.policies.robodojo_arx_x5_policy as robodojo_arx_x5_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -403,6 +404,57 @@ class LeRobotAlohaDataConfig(DataConfigFactory):
 
 
 @dataclasses.dataclass(frozen=True)
+class LeRobotRoboDojoArxX5DataConfig(DataConfigFactory):
+    """Data pipeline for RoboDojo's dual-arm ARX X5 joint-control datasets."""
+
+    use_delta_joint_actions: bool = True
+    default_prompt: str | None = None
+    action_sequence_keys: Sequence[str] = ("action",)
+
+    repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
+        default=_transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "images": {
+                            "cam_high": "observation.images.cam_high",
+                            "cam_left_wrist": "observation.images.cam_left_wrist",
+                            "cam_right_wrist": "observation.images.cam_right_wrist",
+                        },
+                        "state": "observation.state",
+                        "actions": "action",
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        )
+    )
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        data_transforms = _transforms.Group(
+            inputs=[robodojo_arx_x5_policy.RoboDojoArxX5Inputs()],
+            outputs=[robodojo_arx_x5_policy.RoboDojoArxX5Outputs()],
+        )
+        if self.use_delta_joint_actions:
+            # Six delta arm joints, one absolute gripper, repeated for the right arm.
+            delta_action_mask = _transforms.make_bool_mask(6, -1, 6, -1)
+            data_transforms = data_transforms.push(
+                inputs=[_transforms.DeltaActions(delta_action_mask)],
+                outputs=[_transforms.AbsoluteActions(delta_action_mask)],
+            )
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=self.repack_transforms,
+            data_transforms=data_transforms,
+            model_transforms=ModelTransformFactory(default_prompt=self.default_prompt)(model_config),
+            action_sequence_keys=self.action_sequence_keys,
+            prompt_from_task=True,
+        )
+
+
+@dataclasses.dataclass(frozen=True)
 class LeRobotLiberoDataConfig(DataConfigFactory):
     """
     This config is used to configure transforms that are applied at various parts of the data pipeline.
@@ -721,6 +773,23 @@ _CONFIGS = [
             assets=AssetsConfig(asset_id="trossen"),
         ),
         policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+    ),
+    TrainConfig(
+        name="pi05_robodojo_arx_x5_joint",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=50),
+        data=LeRobotRoboDojoArxX5DataConfig(),
+        weight_loader=weight_loaders.CheckpointWeightLoader(tyro.MISSING),
+    ),
+    TrainConfig(
+        name="pi05_robodojo_stack_bowls_official100_dagger56",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=50),
+        data=LeRobotRoboDojoArxX5DataConfig(
+            repo_id=(
+                "robodojo-stack_bowls-official-100ep-xjy-sft,"
+                "robodojo-stack_bowls-seed0-xjy-0814_225915-dagger"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(tyro.MISSING),
     ),
     TrainConfig(
         name="pi0_aloha_towel",
